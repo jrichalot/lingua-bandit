@@ -1,0 +1,41 @@
+# Development Log — LinguaBandit
+
+## Entry 001 — 2026-04-01
+
+### GitHub & Versioning Setup
+
+**Status:** Complete
+
+**Tasks completed:**
+- Created GitHub repository: `lingua-bandit` (public)
+- Configured Git identity (name + email)
+- Cloned repository locally
+- Established two-branch strategy:
+  - `main` — stable releases, auto-deploys to GitHub Pages
+  - `dev` — active development
+- Created initial project structure:
+```
+  lingua-bandit/
+  ├── index.html
+  ├── css/
+  │   └── style.css
+  ├── js/
+  │   └── main.js
+  ├── data/
+  │   └── .gitkeep
+  ├── assets/
+  │   └── sounds/
+  │       └── .gitkeep
+  └── README.md
+```
+- Added `.gitignore` (excludes `.DS_Store`, `node_modules/`, `.env`)
+- Made initial commit and pushed to `dev`
+- Configured GitHub Pages to serve from `main` branch root
+- Live URL: `https://YOUR-USERNAME.github.io/lingua-bandit`
+
+**Decisions made:**
+- Public repo (required for free GitHub Pages hosting)
+- No build step or bundler for now — plain HTML/CSS/JS
+- Vite can be added later if complexity grows
+
+**Next:** Begin game architecture and core file setup
