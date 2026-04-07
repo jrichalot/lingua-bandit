@@ -349,3 +349,225 @@ attaches the key server-side before forwarding to Anthropic.
 
 ---------------------------------------------------------------------------------------
 
+## Entry 005 — 2026-04-07
+
+### Slot Machine UI — First Playable Version
+
+**Status:** Complete — saved as `index.html`, committed to `dev`
+
+---
+
+### What was built
+A fully playable slot machine UI connected to the live Cloudflare
+validation worker. The machine renders as a physical one-armed bandit
+cabinet with a pullable lever arm on the right side.
+
+### Visual design
+After several iterations:
+- **Rejected:** Dark Vegas casino (too heavy, too adult)
+- **Rejected:** Super Mario pixel art (too literal, wrong mood)
+- **Rejected:** Clean blue corporate card UI (too cold)
+- **Settled on:** Disney palette on a physical casino cabinet form
+
+**Colour palette:**
+- Cabinet body: Disney royal blue `#006EB6` to `#002D66`
+- Trim and border rails: Disney gold `#FFC72C` / `#D4A000`
+- JOUER button: bright red `#FF4460` to `#CC0018` (white text)
+- SOUMETTRE button: bright gold `#FFE878` to `#FFA800` (dark blue text)
+- Logo sign background: Disney purple `#7B2D8B`
+- Page background: dark atmospheric radial gradient
+
+**Typography:** Satisfy (logo cursive) · Fredoka One (game text)
+· Nunito (body and nav)
+
+**Cabinet structure top to bottom:**
+- Arched top with gold rivet details, animated star row, coin lights
+- Purple logo sign: LinguaBandit in gold Satisfy script
+- Status bar: Tours remaining · ₣ Franc balance · Série
+- Dark glass reel window with gold payline line
+- Spin pip tracker (one pip per available turn)
+- AI feedback / result banner
+- JOUER (red) + SOUMETTRE (gold) buttons
+- Gold neon panel: Vocabulaire · Grammaire · Jackpot
+- Footer nav: Ma Banque · Mes Fiches · Admin
+- Gold base strip
+
+**Lever:** Gold mounting plate attached to the right side of the
+cabinet. Chrome track with physical end stops top and bottom.
+Red ball travels down the track on click, springs back before
+reels spin.
+
+---
+
+### Game mechanics implemented
+
+**Spin and hold:**
+- JOUER costs 1₣ per spin
+- Reels spin left to right with staggered stops (700ms + 340ms each)
+- Drum blur animation gives physical reel illusion
+- Ghost words above and below centre word reinforce drum depth
+- Click any reel frame to hold it — gold glow appears
+- Label changes: GARDER → GARDE (held state)
+- Held reels do not spin on next turn
+
+**Joker mechanic:**
+- 10% probability per reel per spin (configurable via JOKER_P)
+- Joker reels glow red, label shows JOKER !
+- Cannot be held — clicking opens word bank modal
+- Player selects a banked word to place on the reel
+- "Tourner ce rouleau à la place" cancels and forces re-spin
+
+**Submit and validation:**
+- SOUMETTRE button appears after first spin
+- Fires POST request to Cloudflare Worker
+- Worker selects Claude Haiku (simple) or Sonnet (complex)
+- Valid alignment → ₣ earned + unspent spins refunded,
+  session resets automatically
+- Invalid alignment → AI explanation shown in result banner
+  in English, −3₣ penalty applied
+- Unresolved jokers block submission
+
+**₣ Franc credit system:**
+- Starting balance: 20₣ (hardcoded, admin-configurable later)
+- Each spin costs 1₣
+- Correct submission earns 3₣ / 4₣ / 5₣ by reel count
+- Unspent spins refunded on correct submission
+- Wrong submission penalty: −3₣ fixed
+- JOUER button disables at 0₣
+
+**Mastery and word bank:**
+- Words require 3 correct submissions before entering the bank
+  (masteryScores tracked per word in G object)
+- Bank alert every 10 new words banked
+- Game locks at 50 banked words without printing flashcards
+  (lock screen with humorous message shown)
+- Unlock requires opening the flashcard print view
+
+**Flashcard print view:**
+- Opens in a new browser tab
+- Blank card grid — one card per banked word, sorted A–Z
+- Fields: Genre · Catégorie · Traduction · Phrase exemple
+- All fields blank by design — student fills in themselves
+- Print button included in the tab
+
+---
+
+### Responsive design
+- All sizing uses CSS `clamp()` throughout
+- Scales cleanly from 280px phone to wide desktop
+- Cabinet and lever maintain physical proportions at all sizes
+- No scrolling required on any viewport
+
+### Reel count adaptability
+- `var N_REELS = 3` at top of script — change to 4 or 5
+- Reels, pools, holds, jokers and stagger delays all adapt
+- Word pools for reels 4 and 5 pre-populated (verbs, adverbs)
+
+---
+
+### Key constants (all configurable at top of script)
+```javascript
+var N_REELS          = 3;
+var MAX_SPINS        = 5;
+var SPIN_COST        = 1;
+var PENALTY          = 3;
+var JOKER_P          = 0.1;
+var EARN             = {"3":3, "4":4, "5":5};
+var BANK_ALERT_EVERY = 10;
+var BANK_LOCK_AT     = 50;
+```
+
+---
+
+### Bugs encountered and fixed
+
+**Bug 1 — Rendering failure (code displayed on screen)**
+- Cause: nested template literals inside `<script>` block
+  confused the HTML parser
+- Cause confirmed: `</style>` inside a JavaScript string on
+  the flashcard HTML builder was interpreted by the HTML parser
+  as a real closing tag, terminating script parsing early
+- Fix: rewrote entire script block using `var`, plain string
+  concatenation, and `createElement` — no template literals
+  anywhere in JS. Escaped all closing HTML tags inside JS
+  strings as `<\/style>`, `<\/head>`, `<\/body>`, `<\/html>`
+- Lesson: the HTML parser pre-scans `<script>` blocks before
+  JS runs. Any `</tagname>` sequence inside a JS string can
+  terminate parsing. Always escape closing tags in JS strings
+  that build HTML.
+
+**Bug 2 — AI explanation returned in French not English**
+- Cause: `explain_language` sent as `'French'` from `index.html`
+- Fix: hardcoded English in the Cloudflare Worker prompt,
+  removed the `explain_language` variable from the prompt.
+  Added teenager-appropriate tone guidance and instruction
+  to acknowledge what is good about the attempt.
+
+**Bug 3 — Connection error when testing inside Claude chat**
+- Cause: Claude's chat widget sandbox blocks outbound fetch
+  calls to external URLs — not a real app bug
+- Fix: always test via VS Code Live Server
+  (`http://localhost:5500`) or GitHub Pages, never inside
+  the Claude chat widget
+
+---
+
+### Cloudflare Worker prompt (updated)
+```javascript
+const prompt = `You are a friendly grammar coach for a French
+language learning game aimed at teenagers.
+The player has aligned these words in order: ${words.join(" ")}
+
+Evaluate this alignment:
+1. Is it grammatically correct French?
+2. Does it make natural semantic sense?
+3. If incorrect, explain in simple English why it is wrong —
+   maximum 2 sentences, warm and encouraging tone, suitable
+   for a beginner learner. Start with what is good about
+   the attempt if anything.
+
+Respond ONLY as JSON with no commentary:
+{ "valid": true/false, "reason": "..." }
+If valid, reason must be an empty string.`;
+```
+
+---
+
+### Testing notes
+- Must be tested via Live Server or GitHub Pages
+- Claude chat widget blocks external fetch — always shows
+  connection error, not a real bug
+- Confirmed working: valid alignment returns win state,
+  invalid alignment returns English AI explanation
+
+---
+
+### Known limitations deferred to later versions
+- No sound yet (Howler.js integration pending)
+- No localStorage persistence — state resets on page refresh
+- Admin panel is a placeholder alert
+- Word pools hardcoded — real pack loading not yet built
+- No user login or multi-user support
+- Flashcard PDF export not yet implemented — current version
+  opens a print stylesheet in a new tab
+- Joker shows [J] text placeholder — visual improvement pending
+
+---
+
+### Files changed
+- `index.html` — created (replaces placeholder from Entry 001)
+- Cloudflare Worker `lingua-bandit-validator` — prompt updated
+
+### Suggested next commit
+```bash
+git add index.html DEVLOG.md
+git commit -m "feat: first playable slot machine UI with AI validation"
+git push
+```
+
+### Next steps
+1. Commit `index.html` and `DEVLOG.md` to `dev` branch
+2. localStorage persistence layer (`store.js`)
+3. Admin panel — word list input, pack creation, config
+4. Sound design — Howler.js
+5. Flashcard PDF generation — jsPDF
