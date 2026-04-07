@@ -39,3 +39,313 @@
 - Vite can be added later if complexity grows
 
 **Next:** Begin game architecture and core file setup
+
+--------------------------------------------------------------------------------------
+
+## Entry 002 — 2026-04-01
+
+### Architecture & Design Decisions
+
+**Status:** Design phase complete — ready to build
+
+---
+
+### App identity
+- **Name:** LinguaBandit
+- **Concept:** A one-armed bandit (slot machine) vocabulary game for language learners
+- **Starting language:** French only (v1)
+- **Future languages:** Japanese, then Chinese (architecture must be extensible)
+- **Hosting:** GitHub Pages (static)
+- **Versioning:** GitHub — `main` (production) / `dev` (development)
+
+---
+
+### Game concept
+- Reels spin and stop on words. A winning alignment is a grammatically
+  and semantically correct French phrase
+- Examples of valid alignments:
+  - Simple: `LA | MAISON | BLEUE`
+  - Complex: `IL | LES | LUI | A | DONNÉES`
+  - Very complex: `ELLE | Y | SERAIT | ALLÉE | LENTEMENT`
+- Reel width is configurable by admin: 3 to 5 slots
+- All manner of French words are in scope: articles, nouns, adjectives,
+  verbs, pronouns (subject, object, indirect, reflexive, y, en),
+  adverbs, auxiliary verbs, past participles
+- Complex constructions (compound tenses, pronoun ordering, past
+  participle agreement) are explicitly in scope
+
+### Word bank mechanic
+- Successfully aligning a word n times (admin-configurable) earns
+  the right to bank it
+- Banked words are the player's currency and score
+- Banked words expire after a set period — players must reuse them
+- A joker symbol can appear on a reel — player may substitute
+  a banked word
+- Using a banked word incorrectly loses it permanently
+- Players can view their word bank, track expiry, and print
+  flashcards from outside the game
+
+### Flashcard philosophy
+- The app prints a blank template with the word only
+- Students fill in gender, grammatical category, translation,
+  example sentence etc. themselves — by design
+- Pre-filling this information would undermine the learning process
+- This is a firm pedagogical decision, not a technical limitation
+
+---
+
+### Tech stack
+- **Frontend:** Plain HTML + CSS + JavaScript — no framework
+- **Sound:** Howler.js (slot machine SFX and feedback sounds)
+- **Persistence:** localStorage (in-browser user database)
+- **Bundler:** None for now — add Vite later if needed
+- **Validation:** Anthropic API via Cloudflare Worker proxy
+- **Hosting:** GitHub Pages
+
+### File structure
+```
+lingua-bandit/
+├── index.html
+├── css/
+│   └── style.css
+├── js/
+│   └── main.js
+├── data/
+│   └── .gitkeep
+├── assets/
+│   └── sounds/
+│       └── .gitkeep
+├── .gitignore
+└── README.md
+```
+
+### Planned JS modules (to be created)
+- `engine.js` — slot machine spin logic, alignment validation calls
+- `vocab.js` — word pool management, mastery tracking
+- `bank.js` — word bank CRUD, expiry logic, flashcard generation
+- `admin.js` — config UI, vocab import
+- `store.js` — all localStorage reads/writes, schema versioning
+
+---
+
+### Validation architecture
+
+**Approach:** Full AI validation — no local rule engine
+
+**Rejected approaches:**
+- Hand-coded French grammar rule engine — too brittle, cannot scale
+  to complex pronoun constructions and compound tenses
+- LanguageTool API — weak on Japanese/Chinese, not designed for
+  short fragment inputs, requires CORS proxy
+- Browser NLP libraries (compromise.js, Wink) — English only,
+  not applicable
+
+**Chosen approach:**
+- Every spin result is validated by a single AI API call
+- The call checks grammar AND semantics together in one shot
+- The response returns `{ valid: true/false, reason: "..." }`
+- On failure the reason is shown to the player as a learning moment
+- On success validation is silent — the win speaks for itself
+
+**Model selection by complexity:**
+- Simple alignments (ART + NOUN + ADJ): Haiku 4.5
+- Complex alignments (pronouns, compound tenses): Sonnet 4.6
+- Complexity level declared in the pack config by admin
+
+**Validation prompt pattern:**
+```
+You are a French grammar judge for a language learning game.
+The player has aligned these words in order: [WORDS]
+1. Is this grammatically correct French?
+2. Does it make semantic sense?
+3. If wrong, explain simply why in English (max 2 sentences,
+   encouraging tone, suitable for a language learner).
+Respond ONLY as JSON: { "valid": true/false, "reason": "..." }
+```
+
+### API & key management
+- Anthropic API key stored in LastPass — never in codebase
+- Key will live as an environment variable in a Cloudflare Worker
+- Cloudflare Worker acts as a proxy — keeps key out of frontend JS
+- Cloudflare free tier: up to 100,000 requests/day — sufficient
+- Spending cap set at $5/month on Anthropic Console
+- Email alerts at $1 and $3 thresholds
+
+---
+
+### Data architecture
+
+**localStorage schema — key objects:**
+- `users{}` — user profiles
+- `wordBank{}` — banked words with expiry timestamps
+- `masteryScores{}` — per-word win counts per user
+- `vocabPacks{}` — loaded word lists
+- `gameConfig{}` — admin settings
+
+**Word entry — minimal by design:**
+```json
+{ "word": "maison", "level": "A1" }
+```
+
+No gender, no grammatical category, no translation — the AI
+validates at runtime, students research and record this
+information themselves on their handwritten flashcards.
+
+**Game pack entry:**
+```json
+{
+  "id": "pack-maison-a1",
+  "label": "At home — A1",
+  "language": "fr",
+  "mastery_threshold": 3,
+  "bank_expiry_days": 7,
+  "complexity": "simple",
+  "words": [
+    { "word": "maison", "level": "A1" },
+    { "word": "chat", "level": "A1" }
+  ],
+  "reel_width": 3,
+  "llm_explain_language": "en"
+}
+```
+
+---
+
+### Admin setup flow
+1. Admin pastes comma-separated word list into setup screen
+2. Selects reel width (3–5), complexity level, mastery threshold,
+   bank expiry period
+3. Clicks "Create pack" — words saved to localStorage as-is
+4. No AI call at setup time — validation is entirely at runtime
+5. Admin panel is password-protected
+
+### Semantic validity
+- Curated slot pools (Option 3) as primary safeguard — admin
+  groups words that make sense together
+- Lightweight semantic tag-check (Option 1) as safety net for
+  open pools
+- AI validation catches anything that slips through at runtime
+- AI also handles cases that are grammatically valid but
+  semantically absurd (e.g. LA MAISON RAPIDE)
+
+---
+
+### UI & UX
+- Visual style: casino slot machine — convincing, immersive
+- Must include satisfying sounds (Howler.js)
+- Players can access word bank and flashcard view outside the game
+- Game should feel rewarding to win and instructive to lose
+
+---
+
+### Open questions / deferred decisions
+- Elision handling (l'arbre vs la arbre) — deferred to v1 testing
+- Plural forms on reels — not yet designed
+- User authentication model — localStorage only for v1,
+  no server-side accounts
+- Specific French grammatical structures for v1 — not yet locked
+- Whether to support multiple simultaneous users on one device
+
+---
+
+**Next:** Cloudflare Worker setup, then core game engine
+
+--------------------------------------------------------------------------------------
+
+## Entry 003 — 2026-04-01
+
+### Cloudflare Worker Setup
+
+**Status:** In progress
+
+---
+
+### Purpose
+Cloudflare Worker acts as a secure proxy between the LinguaBandit
+frontend and the Anthropic API. The API key never appears in
+frontend JavaScript or the GitHub repository. All validation
+requests from the game are routed through the Worker, which
+attaches the key server-side before forwarding to Anthropic.
+
+### Why Cloudflare Workers
+- Free tier: 100,000 requests/day — more than sufficient
+- No server to maintain — serverless, always on
+- Environment variables keep the API key secure
+- Deployment takes ~15 minutes
+- Works seamlessly with a static GitHub Pages frontend
+
+### Worker responsibility
+- Receive a validation request from the game (words + complexity)
+- Forward it to the Anthropic API with the key attached
+- Return the JSON response to the game
+- Reject requests from unauthorised origins (CORS protection)
+
+### Next
+- Create Cloudflare account
+- Create Worker
+- Set API key as environment variable
+- Deploy and test
+- Note Worker URL for use in engine.js
+
+-----------------------------------------------------------------------------------------
+
+## Entry 004 — 2026-04-01
+
+### Cloudflare Worker — Validation Proxy
+
+**Status:** Complete and tested
+
+---
+
+### Worker details
+- Name: `lingua-bandit-validator`
+- URL: `https://lingua-bandit-validator.jrichalot.workers.dev`
+- Platform: Cloudflare Workers (free tier)
+- Deployed: 2026-04-01
+
+### What it does
+- Receives POST requests from the game frontend
+- Selects model based on complexity flag:
+  - simple → `claude-haiku-4-5-20251001`
+  - complex → `claude-sonnet-4-6`
+- Forwards request to Anthropic API with key attached server-side
+- Strips markdown code fences from model response if present
+- Returns clean JSON to the game: `{ "valid": true/false, "reason": "..." }`
+
+### Bug encountered and fixed
+- Initial deployment returned `{"valid":false,"reason":"Validation service error."}`
+- Cause: model was wrapping JSON response in markdown code fences
+  (` ```json ... ``` `) which broke `JSON.parse()`
+- Fix: added `.replace()` chain to strip fences before parsing
+
+### Test results
+**Valid alignment:**
+- Input:  `["LA", "MAISON", "BLEUE"]`
+- Output: `{"valid":true,"reason":""}`
+
+**Invalid alignment:**
+- Input:  `["LE", "MAISON", "BLEUE"]`
+- Output: `{"valid":false,"reason":"The article should be 'LA' instead
+  of 'LE' because 'maison' is a feminine noun in French. You're on the
+  right track — just remember that 'maison' takes the feminine article!"}`
+
+### Notes
+- CORS currently set to `*` (all origins)
+- Tighten to `https://jrichalot.github.io` before going live
+- API key stored as encrypted environment variable in Cloudflare —
+  never in codebase
+- Worker URL to be stored in `engine.js` as `VALIDATOR_URL` constant
+
+### To modify or redeploy
+1. Go to cloudflare.com → Workers & Pages
+2. Select `lingua-bandit-validator`
+3. Click Edit Code
+4. Make changes → Save and deploy
+5. Environment variables: Settings → Variables
+
+---
+
+**Next:** Slot machine UI — HTML structure and CSS casino styling
+
+---------------------------------------------------------------------------------------
+
