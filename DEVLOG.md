@@ -848,3 +848,172 @@ git push
 2. Admin panel — pack creation UI with AI drum assignment
 3. Sound design — Howler.js
 4. Flashcard PDF generation — jsPDF
+
+---------------------------------------------------------------
+
+## Entry 007 — 2026-04-17
+
+### store.js wired into index.html — persistence verified
+
+**Status:** Complete — tested, bugs fixed, committed to `dev`
+
+---
+
+### What was done
+`store.js` was wired into `index.html`, replacing the hardcoded
+`var G = {}` object and all in-memory state with Store calls.
+The game now fully persists across browser close and supports
+multiple independent class packs via URL hash codes.
+
+---
+
+### Changes to index.html
+
+**Removed:**
+- Hardcoded `var G = { francs:20, wordBank:[...], ... }` object
+- `initState()` function
+- Direct `G.wordBank.push()` calls
+- Direct `G.masteryScores` tracking
+- Hardcoded `ALL_POOLS` as the word source
+
+**Added:**
+- `<script src="js/store.js"></script>` in `<head>`
+- `DEMO_PACK` constant — fallback pack for bare URL with no hash
+- `init()` function — replaces `initState()`, reads pack from URL,
+  loads persisted state, seeds bank, sweeps expired words
+- `saveG()` helper — calls `Store.saveState(G)` after every
+  spin, hold change, and submission
+- `getBankedWords()` and `getBankCount()` helpers — read from
+  Store in pack mode, fall back to `G.wordBank` in demo mode
+- Demo mode guard (`CODE !== "DEMO"`) throughout — demo play
+  leaves no trace in localStorage
+
+**Key wiring points:**
+- `spin()` calls `saveG()` after reels stop
+- `toggleHold()` calls `saveG()` after hold state changes
+- `submitAlignment()` calls `Store.incrementMastery()` and
+  `Store.isNewlyMastered()` — banks words via Store, not array push
+- `placeJoker()` calls `Store.useWord()` — records use, resets expiry
+- `showBank()` calls `Store.getExpiringWords()` — shows expiry
+  warnings alongside banked words
+- `showAdmin()` shows pack label, code, and shareable URL
+
+---
+
+### Bugs found and fixed during testing
+
+**Bug 1 — DOMContentLoaded timing (critical)**
+
+Symptom: State reset to defaults (francs=20) on every page reload
+despite being correctly saved to localStorage.
+
+Root cause: `init()` was called at the bottom of the script block
+which runs before the browser has finished parsing the full URL
+including the hash. `getCodeFromURL()` read `window.location.hash`
+while it was still empty, returned `null`, and `init()` fell through
+to demo mode (`CODE = "DEMO"`). `Store.getState("DEMO")` returned
+a default state with `francs:20`, overwriting the saved state.
+
+Diagnosis steps:
+1. `Store.getState(code)` showed `francs:19` — state WAS saved
+2. `G.francs` after reload showed `20` — something reset it
+3. Added `console.log("Loading state for CODE:", CODE)` — printed
+   `"DEMO"` confirming the URL hash was not being read
+
+Fix: wrapped `init()` call in a `DOMContentLoaded` listener:
+```javascript
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+```
+
+This ensures `init()` always runs after the full URL including
+the hash is available to JavaScript.
+
+**Bug 2 — seedBankIfEmpty against wrong code (consequence of bug 1)**
+
+Symptom: Preloaded bank words (LA, LE, LES) not available when
+joker modal opened on packs created before the DOMContentLoaded fix.
+
+Root cause: `seedBankIfEmpty()` ran during `init()` while `CODE`
+was still `"DEMO"`. The seed was written to `lb_bank_DEMO` instead
+of `lb_bank_FR-XX-XX`. The real pack's bank was therefore empty.
+
+Fix: same DOMContentLoaded fix above. All packs created and opened
+after the fix seed correctly. Existing test packs required manual
+`Store.seedBankIfEmpty(code)` call to recover.
+
+---
+
+### Known constraint
+
+`seedBankIfEmpty()` only runs during `init()` on page load.
+If a pack is created in the browser console after the page has
+already loaded, the seed will not run automatically. Call
+`Store.seedBankIfEmpty(code)` manually in that case.
+
+In production this is not an issue — students always open the
+game via the teacher's shared URL so `init()` always runs first.
+
+---
+
+### Test results
+
+**Automated suite — persistence.test.js**
+- Version updated to 1.1
+- Section 11 added: DOMContentLoaded Timing (10 new assertions)
+- Total: 100 passed · 0 failed · 12 manual · / 112 total
+
+Section 11 tests cover:
+- `getCodeFromURL()` returns null when hash is empty
+- `getCodeFromURL()` returns null for all invalid hash formats
+- `getCodeFromURL()` returns correct code for valid hash
+- CODE is never "DEMO" when a valid pack hash is in the URL
+- `packExists()` true for code read from URL hash
+- `getState()` returns saved data not defaults (regression test)
+- `getState("DEMO")` returns defaults not pack saved state
+- `setURLCode()` updates hash without page reload
+- `getShareURL()` produces URL containing pack code and # separator
+
+**Manual checklist — MANUAL_PERSISTENCE_TEST_CHECKLIST.md**
+All 12 manual tests passed:
+- M.1  Pack loading from URL hash
+- M.2  Demo mode fallback
+- M.3  Session state persists across tab close (francs, held reel)
+- M.4  Preloaded bank seeded on first visit
+- M.5  Ma Banque shows preloaded words
+- M.6  Joker modal opens and places word
+- M.7  Joker use recorded in bank
+- M.8  Word expiry alert on page reload
+- M.9  Franc top-up re-enables JOUER
+- M.10 Multiple packs coexist independently
+- M.11 Flashcard print view
+- M.12 Demo mode leaves no localStorage trace
+
+Note on M.6: joker modal only works after at least one spin has
+been played in the session. This is correct — jokers cannot appear
+on load, only as the result of a spin. The edge case of forcing a
+joker via console before any spin is an artificial state that
+cannot occur in normal gameplay.
+
+---
+
+### Files changed
+- `index.html` — wired to store.js, DOMContentLoaded fix applied
+- `js/store.js` — no changes (v1.0 unchanged)
+- `tests/persistence.test.js` — updated to v1.1, section 11 added
+- `tests/MANUAL_PERSISTENCE_TEST_CHECKLIST.md` — used for M tests
+
+### Commit
+```bash
+git add index.html tests/persistence.test.js DEVLOG.md
+git commit -m "feat: wire store.js into index.html, fix DOMContentLoaded timing bug"
+git push
+```
+
+### Next steps
+1. Admin panel — pack creation UI with AI drum assignment
+2. Sound design — Howler.js
+3. Flashcard PDF generation — jsPDF

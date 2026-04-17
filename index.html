@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>LinguaBandit</title>
 <link href="https://fonts.googleapis.com/css2?family=Satisfy&family=Fredoka+One&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+<script src="js/store.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -243,274 +244,573 @@ html,body{
 </div>
 
 <script>
-var N_REELS   = 3;
-var MAX_SPINS = 5;
-var SPIN_COST = 1;
-var PENALTY   = 3;
-var JOKER_P   = 0.1;
-var EARN      = {"3":3,"4":4,"5":5};
-var BANK_ALERT_EVERY = 10;
-var BANK_LOCK_AT     = 50;
-var VALIDATOR = "https://lingua-bandit-validator.jrichalot.workers.dev";
+/* ══════════════════════════════════════════
+   LINGUABANDIT — main game script
+   Requires: js/store.js loaded before this block
+   ══════════════════════════════════════════ */
 
-var ALL_POOLS = [
-  ["LA","LE","LES","UNE","UN","DES"],
-  ["MAISON","CHAT","CHIEN","VOITURE","LIVRE","TABLE","PORTE","JARDIN"],
-  ["BLEUE","ROUGE","GRAND","PETIT","VIEUX","BELLE","RAPIDE","DOUCE","NOIR"],
-  ["DORT","COURT","MANGE","PARLE","JOUE","CHANTE"],
-  ["VITE","BIEN","MAL","FORT","SOUVENT"]
-];
-var ALL_GHOSTS = [
-  [["UNE","DES"],["LE","LES"]],
-  [["CHAT","CHIEN"],["PORTE","LIVRE"]],
-  [["ROUGE","NOIR"],["GRAND","VIEUX"]],
-  [["COURT","MANGE"],["DORT","JOUE"]],
-  [["BIEN","MAL"],["VITE","FORT"]]
-];
+var VALIDATOR    = "https://lingua-bandit-validator.jrichalot.workers.dev";
+var BANK_LOCK_AT = 50;
 
-var pools  = ALL_POOLS.slice(0, N_REELS);
-var ghosts = ALL_GHOSTS.slice(0, N_REELS);
-
-var G = {
-  francs:20, spinsLeft:MAX_SPINS, spinsUsed:0,
-  held:[], words:[], joker:[],
-  spinning:false, hasSpun:false,
-  wins:0, streak:0,
-  wordBank:["CHAT","LIVRE","PORTE","ROUGE"],
-  masteryScores:{}, pendingJoker:null, printedAt:0
+/* ── Fallback demo pack used when no code in URL ── */
+var DEMO_PACK = {
+  code:   "DEMO",
+  label:  "Demo — Maison A1",
+  config: {
+    nReels: 3, maxSpins: 5, spinCost: 1, wrongPenalty: 3,
+    jokerProbability: 0.1, earnByReels: {"3":3,"4":4,"5":5},
+    masteryThreshold: 3, bankExpiryDays: 30, startingFrancs: 20,
+    complexity: "simple"
+  },
+  drums: [
+    { position:1, words:["LA","LE","LES","UNE","UN","DES"] },
+    { position:2, words:["MAISON","CHAT","CHIEN","VOITURE","LIVRE","TABLE","PORTE","JARDIN"] },
+    { position:3, words:["BLEUE","ROUGE","GRAND","PETIT","VIEUX","BELLE","RAPIDE","DOUCE","NOIR"] }
+  ],
+  preloadedBank: []
 };
 
-function initState() {
-  G.held=[]; G.words=[]; G.joker=[];
-  for (var i=0;i<N_REELS;i++) {
-    G.held.push(false);
-    G.words.push(rnd(pools[i]));
-    G.joker.push(false);
+/* Ghost words for drum depth illusion — one pair per drum position */
+var ALL_GHOSTS = [
+  [["UNE","DES"],    ["LE","LES"]],
+  [["CHAT","CHIEN"], ["PORTE","LIVRE"]],
+  [["ROUGE","NOIR"], ["GRAND","VIEUX"]],
+  [["COURT","MANGE"],["DORT","JOUE"]],
+  [["BIEN","MAL"],   ["VITE","FORT"]]
+];
+
+/* ── Runtime variables — set during init ── */
+var PACK    = null;   /* current pack definition          */
+var CODE    = null;   /* current pack code                */
+var N_REELS = 3;      /* from pack config                 */
+var MAX_SPINS = 5;    /* from pack config                 */
+var SPIN_COST = 1;    /* from pack config                 */
+var PENALTY   = 3;    /* from pack config                 */
+var JOKER_P   = 0.1;  /* from pack config                 */
+var EARN      = {};   /* from pack config                 */
+var pools     = [];   /* drum word arrays                 */
+var ghosts    = [];   /* ghost word pairs per drum        */
+
+/* ── G is the live session state object ── */
+var G = {};
+
+/* ══════════════════════════════════════════
+   INIT — runs on page load
+   ══════════════════════════════════════════ */
+
+function init() {
+  /* 1. Determine which pack to load */
+  CODE = Store.getCodeFromURL();
+
+  if (CODE && Store.packExists(CODE)) {
+    PACK = Store.getPack(CODE);
+  } else {
+    /* No valid code in URL — use demo pack */
+    PACK = DEMO_PACK;
+    CODE = "DEMO";
   }
+
+  /* 2. Apply pack config to runtime variables */
+  var cfg  = PACK.config;
+  N_REELS  = cfg.nReels;
+  MAX_SPINS = cfg.maxSpins;
+  SPIN_COST = cfg.spinCost;
+  PENALTY   = cfg.wrongPenalty;
+  JOKER_P   = cfg.jokerProbability;
+  EARN      = cfg.earnByReels;
+
+  /* 3. Build word pools from drum definitions */
+  pools  = [];
+  ghosts = [];
+  for (var i = 0; i < N_REELS; i++) {
+    var drum = PACK.drums[i];
+    pools.push(drum ? drum.words.slice() : []);
+    ghosts.push(ALL_GHOSTS[i] || [["..."],["..."]]);
+  }
+
+  /* 4. Sweep expired bank words, seed preloaded bank if first visit */
+  if (CODE !== "DEMO") {
+    var expired = Store.sweepExpiredWords(CODE);
+    if (expired.length > 0) {
+      setTimeout(function(){
+        alert(expired.length + " mot(s) ont expire de votre banque : " + expired.join(", "));
+      }, 800);
+    }
+    Store.seedBankIfEmpty(CODE);
+    Store.touchPackLastPlayed(CODE);
+  }
+
+  /* 5. Load persisted session state */
+  G = Store.getState(CODE);
+
+
+  /* 6. Ensure arrays are correct length (guard against config changes) */
+  while (G.words.length < N_REELS) { G.words.push(rnd(pools[G.words.length] || ["?"])); }
+  while (G.held.length  < N_REELS) { G.held.push(false);  }
+  while (G.joker.length < N_REELS) { G.joker.push(false); }
+  G.words  = G.words.slice(0, N_REELS);
+  G.held   = G.held.slice(0,  N_REELS);
+  G.joker  = G.joker.slice(0, N_REELS);
+
+  /* 7. Ensure transient fields exist */
+  if (typeof G.spinning    === "undefined") G.spinning    = false;
+  if (typeof G.pendingJoker === "undefined") G.pendingJoker = null;
+  G.spinning = false;   /* never persist a mid-spin state */
+
+  /* 8. Build UI and render */
+  buildReels();
+  render();
 }
 
-function gId(id) { return document.getElementById(id); }
-function rnd(a)  { return a[Math.floor(Math.random()*a.length)]; }
-function sleep(ms){ return new Promise(function(r){setTimeout(r,ms);}); }
+/* ══════════════════════════════════════════
+   HELPERS
+   ══════════════════════════════════════════ */
 
-function mkEl(tag,cls,id){
-  var e=document.createElement(tag);
-  if(cls) e.className=cls;
-  if(id)  e.id=id;
+function gId(id) { return document.getElementById(id); }
+function rnd(a)  { return a[Math.floor(Math.random() * a.length)]; }
+function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+
+function saveG() {
+  /* Persist G to localStorage. Joker and held arrays are transient
+     mid-spin but we still save them so the player can resume
+     exactly where they left off if they close mid-session. */
+  if (CODE !== "DEMO") Store.saveState(G);
+}
+
+/* Returns active banked words as a plain array of word strings */
+function getBankedWords() {
+  if (CODE === "DEMO") return G.wordBank || [];
+  return Store.getActiveWords(CODE).map(function(e){ return e.word; });
+}
+
+function getBankCount() {
+  if (CODE === "DEMO") return (G.wordBank || []).length;
+  return Store.getBankSize(CODE);
+}
+
+/* ══════════════════════════════════════════
+   BUILD REELS DOM
+   ══════════════════════════════════════════ */
+
+function mkEl(tag, cls, id) {
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (id)  e.id = id;
   return e;
 }
 
-function buildReels(){
-  var row=gId('reels-row'), pips=gId('pips');
-  row.innerHTML=''; pips.innerHTML='';
-  for(var i=0;i<N_REELS;i++){
-    (function(idx){
-      var ga=mkEl('div','reel-ghost','ga'+idx); ga.textContent=rnd(ghosts[idx][0]);
-      var s1=mkEl('div','reel-sep');
-      var mw=mkEl('div','reel-main','word'+idx); mw.textContent=G.words[idx];
-      var s2=mkEl('div','reel-sep');
-      var gb=mkEl('div','reel-ghost','gb'+idx); gb.textContent=rnd(ghosts[idx][1]);
-      var tp=mkEl('div','reel-tape','tape'+idx);
-      tp.appendChild(ga); tp.appendChild(s1); tp.appendChild(mw); tp.appendChild(s2); tp.appendChild(gb);
-      var nl=mkEl('div','notch-l'), nr=mkEl('div','notch-r');
-      var lk=mkEl('div','lock-badge'); lk.textContent='lock';
-      var dm=mkEl('div','reel-drum');
+function buildReels() {
+  var row  = gId('reels-row');
+  var pips = gId('pips');
+  row.innerHTML  = '';
+  pips.innerHTML = '';
+
+  for (var i = 0; i < N_REELS; i++) {
+    (function(idx) {
+      var ga = mkEl('div','reel-ghost','ga'+idx);
+      ga.textContent = rnd(ghosts[idx][0]);
+      var s1 = mkEl('div','reel-sep');
+      var mw = mkEl('div','reel-main','word'+idx);
+      mw.textContent = G.words[idx] || rnd(pools[idx]);
+      var s2 = mkEl('div','reel-sep');
+      var gb = mkEl('div','reel-ghost','gb'+idx);
+      gb.textContent = rnd(ghosts[idx][1]);
+      var tp = mkEl('div','reel-tape','tape'+idx);
+      tp.appendChild(ga); tp.appendChild(s1); tp.appendChild(mw);
+      tp.appendChild(s2); tp.appendChild(gb);
+      var nl = mkEl('div','notch-l');
+      var nr = mkEl('div','notch-r');
+      var lk = mkEl('div','lock-badge');
+      lk.textContent = 'lock';
+      var dm = mkEl('div','reel-drum');
       dm.appendChild(nl); dm.appendChild(nr); dm.appendChild(tp); dm.appendChild(lk);
-      var fr=mkEl('div','reel-frame','rf'+idx);
+      var fr = mkEl('div','reel-frame','rf'+idx);
       fr.appendChild(dm);
-      fr.addEventListener('click',(function(n){return function(){toggleHold(n);};})(idx));
-      var lb=mkEl('div','reel-lbl','rl'+idx); lb.textContent='GARDER';
-      var ut=mkEl('div','reel-unit','ru'+idx);
+      fr.addEventListener('click', (function(n){
+        return function(){ toggleHold(n); };
+      })(idx));
+      var lb = mkEl('div','reel-lbl','rl'+idx);
+      lb.textContent = 'GARDER';
+      var ut = mkEl('div','reel-unit','ru'+idx);
       ut.appendChild(fr); ut.appendChild(lb);
       row.appendChild(ut);
     })(i);
   }
-  for(var j=0;j<MAX_SPINS;j++){
-    var p=document.createElement('div'); p.className='pip'; pips.appendChild(p);
+
+  for (var j = 0; j < MAX_SPINS; j++) {
+    var pip = document.createElement('div');
+    pip.className = 'pip';
+    pips.appendChild(pip);
   }
 }
 
-function render(){
+/* ══════════════════════════════════════════
+   RENDER
+   ══════════════════════════════════════════ */
+
+function render() {
   gId('franc-val').textContent  = G.francs;
   gId('spins-left').textContent = G.spinsLeft;
   gId('streak-val').textContent = G.streak;
-  var ps=gId('pips').querySelectorAll('.pip');
-  for(var p=0;p<ps.length;p++){
+
+  var ps = gId('pips').querySelectorAll('.pip');
+  for (var p = 0; p < ps.length; p++) {
     ps[p].classList.remove('used','last');
-    if(p<G.spinsUsed) ps[p].classList.add(p===G.spinsUsed-1?'last':'used');
-  }
-  for(var i=0;i<N_REELS;i++){
-    var rf=gId('rf'+i), ru=gId('ru'+i), rl=gId('rl'+i), w=gId('word'+i);
-    w.textContent = G.joker[i] ? '[J]' : G.words[i];
-    rf.classList[G.held[i]&&!G.joker[i]?'add':'remove']('held');
-    ru.classList[G.held[i]&&!G.joker[i]?'add':'remove']('held-u');
-    rf.classList[G.joker[i]?'add':'remove']('joker-f');
-    ru.classList[G.joker[i]?'add':'remove']('joker-u');
-    rl.textContent = G.joker[i]?'JOKER !':G.held[i]?'GARDE':'GARDER';
-    if(!G.joker[i]){
-      var ga=gId('ga'+i), gb=gId('gb'+i);
-      if(ga) ga.textContent=rnd(ghosts[i][0]);
-      if(gb) gb.textContent=rnd(ghosts[i][1]);
+    if (p < G.spinsUsed) {
+      ps[p].classList.add(p === G.spinsUsed - 1 ? 'last' : 'used');
     }
   }
-  gId('btn-play').disabled = G.spinning||G.francs<SPIN_COST||G.spinsLeft<=0;
-  var sb=gId('btn-submit');
-  if(G.hasSpun&&!G.spinning) sb.classList.add('vis'); else sb.classList.remove('vis');
-  sb.disabled=G.spinning;
+
+  for (var i = 0; i < N_REELS; i++) {
+    var rf = gId('rf'+i), ru = gId('ru'+i);
+    var rl = gId('rl'+i), w  = gId('word'+i);
+    w.textContent = G.joker[i] ? '[J]' : G.words[i];
+    rf.classList[G.held[i] && !G.joker[i] ? 'add' : 'remove']('held');
+    ru.classList[G.held[i] && !G.joker[i] ? 'add' : 'remove']('held-u');
+    rf.classList[G.joker[i] ? 'add' : 'remove']('joker-f');
+    ru.classList[G.joker[i] ? 'add' : 'remove']('joker-u');
+    rl.textContent = G.joker[i] ? 'JOKER !' : G.held[i] ? 'GARDE' : 'GARDER';
+    if (!G.joker[i]) {
+      var ga = gId('ga'+i), gb = gId('gb'+i);
+      if (ga) ga.textContent = rnd(ghosts[i][0]);
+      if (gb) gb.textContent = rnd(ghosts[i][1]);
+    }
+  }
+
+  gId('btn-play').disabled = G.spinning || G.francs < SPIN_COST || G.spinsLeft <= 0;
+  var sb = gId('btn-submit');
+  if (G.hasSpun && !G.spinning) sb.classList.add('vis');
+  else sb.classList.remove('vis');
+  sb.disabled = G.spinning;
 }
 
-function setResult(txt,type){
-  gId('result-wrap').className='result-wrap'+(type?' '+type+'-s':'');
-  gId('result-txt').textContent=txt;
+function setResult(txt, type) {
+  gId('result-wrap').className = 'result-wrap' + (type ? ' ' + type + '-s' : '');
+  gId('result-txt').textContent = txt;
 }
 
-function toggleHold(i){
-  if(G.spinning||!G.hasSpun) return;
-  if(G.joker[i]){openJoker(i);return;}
-  G.held[i]=!G.held[i]; render();
+/* ══════════════════════════════════════════
+   HOLD / JOKER
+   ══════════════════════════════════════════ */
+
+function toggleHold(i) {
+  if (G.spinning || !G.hasSpun) return;
+  if (G.joker[i]) { openJoker(i); return; }
+  G.held[i] = !G.held[i];
+  saveG();
+  render();
 }
 
-function openJoker(i){
-  if(!G.wordBank.length){setResult("Pas de mots en banque - ce rouleau doit tourner.","lose");return;}
-  G.pendingJoker=i; gId('jnum').textContent=i+1;
-  var c=gId('jchips'); c.innerHTML='';
-  G.wordBank.forEach(function(w){
-    var b=document.createElement('button'); b.className='chip'; b.textContent=w;
-    b.addEventListener('click',(function(ww){return function(){placeJoker(ww);};})(w));
+function openJoker(i) {
+  var banked = getBankedWords();
+  if (!banked.length) {
+    setResult("Pas de mots en banque - ce rouleau doit tourner.", "lose");
+    return;
+  }
+  G.pendingJoker = i;
+  gId('jnum').textContent = i + 1;
+  var c = gId('jchips');
+  c.innerHTML = '';
+  banked.forEach(function(w) {
+    var b = document.createElement('button');
+    b.className = 'chip';
+    b.textContent = w;
+    b.addEventListener('click', (function(ww){
+      return function(){ placeJoker(ww); };
+    })(w));
     c.appendChild(b);
   });
   gId('jmodal').classList.add('open');
 }
 
-function placeJoker(w){
-  var i=G.pendingJoker;
-  G.words[i]=w; G.joker[i]=false; G.held[i]=true;
+function placeJoker(w) {
+  var i = G.pendingJoker;
+  G.words[i]  = w;
+  G.joker[i]  = false;
+  G.held[i]   = true;
   gId('jmodal').classList.remove('open');
-  setResult('"'+w+'" place sur le rouleau '+(i+1)+' depuis votre banque.','ok');
+  /* Record use in Store — resets expiry, increments useCount */
+  if (CODE !== "DEMO") Store.useWord(CODE, w);
+  setResult('"' + w + '" place sur le rouleau ' + (i + 1) + ' depuis votre banque.', 'ok');
+  saveG();
   render();
 }
 
-function cancelJoker(){ gId('jmodal').classList.remove('open'); G.pendingJoker=null; }
+function cancelJoker() {
+  gId('jmodal').classList.remove('open');
+  G.pendingJoker = null;
+}
 
-async function spin(){
-  if(G.spinning||G.francs<SPIN_COST||G.spinsLeft<=0) return;
-  G.spinning=true; G.francs-=SPIN_COST; G.spinsLeft--; G.spinsUsed++; G.hasSpun=true;
-  setResult("Les rouleaux tournent...",""); render();
-  for(var i=0;i<N_REELS;i++) if(!G.held[i]) gId('tape'+i).classList.add('spinning');
-  for(var i=0;i<N_REELS;i++){
-    if(!G.held[i]){
-      await sleep(700+i*340);
+/* ══════════════════════════════════════════
+   SPIN
+   ══════════════════════════════════════════ */
+
+async function spin() {
+  if (G.spinning || G.francs < SPIN_COST || G.spinsLeft <= 0) return;
+  G.spinning  = true;
+  G.francs   -= SPIN_COST;
+  G.spinsLeft--;
+  G.spinsUsed++;
+  G.hasSpun   = true;
+  setResult("Les rouleaux tournent...", "");
+  render();
+
+  for (var i = 0; i < N_REELS; i++) {
+    if (!G.held[i]) gId('tape'+i).classList.add('spinning');
+  }
+
+  for (var i = 0; i < N_REELS; i++) {
+    if (!G.held[i]) {
+      await sleep(700 + i * 340);
       gId('tape'+i).classList.remove('spinning');
-      if(Math.random()<JOKER_P){ G.joker[i]=true; G.words[i]='JOKER'; }
-      else{ G.joker[i]=false; G.words[i]=rnd(pools[i]); }
-      gId('word'+i).textContent=G.joker[i]?'[J]':G.words[i];
-      gId('rf'+i).classList[G.joker[i]?'add':'remove']('joker-f');
+      if (Math.random() < JOKER_P) {
+        G.joker[i] = true;
+        G.words[i] = 'JOKER';
+      } else {
+        G.joker[i] = false;
+        G.words[i] = rnd(pools[i]);
+      }
+      gId('word'+i).textContent = G.joker[i] ? '[J]' : G.words[i];
+      gId('rf'+i).classList[G.joker[i] ? 'add' : 'remove']('joker-f');
     }
   }
-  for(var i=0;i<N_REELS;i++) if(G.joker[i]) G.held[i]=false;
-  var hj=G.joker.some(function(j){return j;});
-  if(hj) setResult("Un Joker ! Cliquez dessus pour jouer un mot de votre banque.","");
-  else if(G.spinsLeft===0) setResult("Plus de tours ! Soumettez votre alignement.","");
-  else setResult("Gardez des rouleaux ou rejouez. Soumettez quand vous etes pret !","");
-  G.spinning=false; render();
+
+  for (var i = 0; i < N_REELS; i++) {
+    if (G.joker[i]) G.held[i] = false;
+  }
+
+  var hj = G.joker.some(function(j){ return j; });
+  if (hj) {
+    setResult("Un Joker ! Cliquez dessus pour jouer un mot de votre banque.", "");
+  } else if (G.spinsLeft === 0) {
+    setResult("Plus de tours ! Soumettez votre alignement.", "");
+  } else {
+    setResult("Gardez des rouleaux ou rejouez. Soumettez quand vous etes pret !", "");
+  }
+
+  G.spinning = false;
+  saveG();
+  render();
 }
 
-async function submitAlignment(){
-  if(G.spinning) return;
-  if(G.joker.some(function(j){return j;})){setResult("Remplacez tous les Jokers avant de soumettre !","lose");return;}
-  var words=G.words.slice(0,N_REELS);
-  setResult("Verification par l'IA en cours...","");
-  gId('btn-submit').disabled=true; gId('btn-play').disabled=true;
-  try{
-    var res=await fetch(VALIDATOR,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({words:words,complexity:'simple',explain_language:'French'})});
-    var data=await res.json();
-    if(data.valid){
-      var earned=EARN[String(N_REELS)]||3, refund=G.spinsLeft;
-      G.francs+=earned+refund; G.wins++; G.streak++;
-      words.forEach(function(w){
-        G.masteryScores[w]=(G.masteryScores[w]||0)+1;
-        if(G.masteryScores[w]>=3&&G.wordBank.indexOf(w)===-1){G.wordBank.push(w);checkBankMilestones();}
+/* ══════════════════════════════════════════
+   SUBMIT
+   ══════════════════════════════════════════ */
+
+async function submitAlignment() {
+  if (G.spinning) return;
+  if (G.joker.some(function(j){ return j; })) {
+    setResult("Remplacez tous les Jokers avant de soumettre !", "lose");
+    return;
+  }
+
+  var words = G.words.slice(0, N_REELS);
+  setResult("Verification par l'IA en cours...", "");
+  gId('btn-submit').disabled = true;
+  gId('btn-play').disabled   = true;
+
+  try {
+    var res  = await fetch(VALIDATOR, {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({
+        words:            words,
+        complexity:       PACK.config.complexity || 'simple',
+        explain_language: 'English'
+      })
+    });
+    var data = await res.json();
+
+    if (data.valid) {
+      var earned = EARN[String(N_REELS)] || 3;
+      var refund = G.spinsLeft;
+      G.francs  += earned + refund;
+      G.wins++;
+      G.streak++;
+
+      /* Update mastery and bank via Store */
+      words.forEach(function(w) {
+        if (CODE !== "DEMO") {
+          var newScore = Store.incrementMastery(CODE, w);
+          if (Store.isNewlyMastered(CODE, w)) {
+            Store.bankWord(CODE, w);
+            checkBankMilestones();
+          }
+        } else {
+          /* Demo mode — use simple in-memory tracking */
+          G.masteryScores = G.masteryScores || {};
+          G.masteryScores[w] = (G.masteryScores[w] || 0) + 1;
+          G.wordBank = G.wordBank || [];
+          if (G.masteryScores[w] >= 3 && G.wordBank.indexOf(w) === -1) {
+            G.wordBank.push(w);
+            checkBankMilestones();
+          }
+        }
       });
+
       gId('outer').classList.add('win-anim');
-      setTimeout(function(){gId('outer').classList.remove('win-anim');},1400);
-      var msg=refund>0?'Bravo ! +'+earned+' gagne + '+refund+' rembourses = +'+(earned+refund)+' !':'Bravo ! Alignement correct ! +'+earned+' !';
-      setResult(msg,"win"); resetSession();
+      setTimeout(function(){ gId('outer').classList.remove('win-anim'); }, 1400);
+
+      var msg = refund > 0
+        ? 'Bravo ! +' + earned + ' gagne + ' + refund + ' rembourses = +' + (earned + refund) + ' !'
+        : 'Bravo ! Alignement correct ! +' + earned + ' !';
+      setResult(msg, "win");
+      resetSession();
+
     } else {
-      G.francs-=PENALTY; G.streak=0;
-      setResult((data.reason||"Essayez encore !")+" (-"+PENALTY+")","lose");
-      gId('btn-submit').disabled=false; gId('btn-play').disabled=false;
+      G.francs -= PENALTY;
+      G.streak  = 0;
+      setResult((data.reason || "Essayez encore !") + " (-" + PENALTY + ")", "lose");
+      gId('btn-submit').disabled = false;
+      gId('btn-play').disabled   = false;
     }
-  } catch(e){
-    setResult("Erreur de connexion. Reessayez.","lose");
-    gId('btn-submit').disabled=false; gId('btn-play').disabled=false;
+
+  } catch(e) {
+    setResult("Erreur de connexion. Reessayez.", "lose");
+    gId('btn-submit').disabled = false;
+    gId('btn-play').disabled   = false;
   }
+
+  saveG();
   render();
 }
 
-function checkBankMilestones(){
-  var size=G.wordBank.length, nw=size-G.printedAt;
-  if(size>=BANK_LOCK_AT&&nw>=BANK_LOCK_AT){gId('lockscreen').classList.add('open');return;}
-  if(nw>0&&nw%BANK_ALERT_EVERY===0) setTimeout(function(){alert('Bravo ! Vous avez '+size+' mots dans votre banque !\n\nPensez a imprimer vos fiches.');},500);
+/* ══════════════════════════════════════════
+   BANK MILESTONES
+   ══════════════════════════════════════════ */
+
+function checkBankMilestones() {
+  var size = getBankCount();
+
+  /* Lock at 50 unprinted */
+  var printedAt = G.printedAt || 0;
+  if (size >= BANK_LOCK_AT && (size - printedAt) >= BANK_LOCK_AT) {
+    gId('lockscreen').classList.add('open');
+    return;
+  }
+
+  /* Alert every 10 new words */
+  var newWords = size - printedAt;
+  if (newWords > 0 && newWords % 10 === 0) {
+    setTimeout(function(){
+      alert('Bravo ! Vous avez ' + size + ' mots dans votre banque !\n\nPensez a imprimer vos fiches.');
+    }, 500);
+  }
 }
 
-function unlockAndPrint(){ G.printedAt=G.wordBank.length; gId('lockscreen').classList.remove('open'); showFlashcards(); }
+function unlockAndPrint() {
+  G.printedAt = getBankCount();
+  saveG();
+  gId('lockscreen').classList.remove('open');
+  showFlashcards();
+}
 
-function resetSession(){
-  G.spinsLeft=MAX_SPINS; G.spinsUsed=0; G.hasSpun=false;
-  for(var i=0;i<N_REELS;i++){G.held[i]=false;G.joker[i]=false;G.words[i]=rnd(pools[i]);}
+/* ══════════════════════════════════════════
+   RESET SESSION
+   New round — keeps francs, wins, streak.
+   ══════════════════════════════════════════ */
+
+function resetSession() {
+  G.spinsLeft = MAX_SPINS;
+  G.spinsUsed = 0;
+  G.hasSpun   = false;
+  for (var i = 0; i < N_REELS; i++) {
+    G.held[i]  = false;
+    G.joker[i] = false;
+    G.words[i] = rnd(pools[i]);
+  }
+  saveG();
   render();
 }
 
-function pullLever(){
-  if(G.spinning||G.spinsLeft<=0||G.francs<SPIN_COST) return;
-  var h=gId('lever-handle'); h.classList.add('pulled');
-  setTimeout(function(){h.classList.remove('pulled');spin();},380);
+/* ══════════════════════════════════════════
+   LEVER
+   ══════════════════════════════════════════ */
+
+function pullLever() {
+  if (G.spinning || G.spinsLeft <= 0 || G.francs < SPIN_COST) return;
+  var h = gId('lever-handle');
+  h.classList.add('pulled');
+  setTimeout(function(){ h.classList.remove('pulled'); spin(); }, 380);
 }
 
-function showBank(){
-  if(!G.wordBank.length){alert("Votre banque est vide.\n\nJouez pour y ajouter des mots !");return;}
-  var s=G.wordBank.slice().sort();
-  alert("Votre banque ("+G.wordBank.length+" mots) :\n\n"+s.join(", ")+"\n\nAllez dans Mes Fiches pour imprimer.");
-}
+/* ══════════════════════════════════════════
+   NAV FUNCTIONS
+   ══════════════════════════════════════════ */
 
-function showFlashcards(){
-  if(!G.wordBank.length){alert("Votre banque est vide - jouez dabord !");return;}
-  var sorted=G.wordBank.slice().sort();
-  var cards='';
-  for(var i=0;i<sorted.length;i++){
-    cards+='<div class="card"><div class="word">'+sorted[i]+'<\/div>'
-      +'<div class="field"><label>Genre</label><div class="line"></div></div>'
-      +'<div class="field"><label>Cat&eacute;gorie</label><div class="line"></div></div>'
-      +'<div class="field"><label>Traduction</label><div class="line"></div></div>'
-      +'<div class="field"><label>Phrase exemple</label><div class="line"></div><div class="line"></div></div>'
-      +'<\/div>';
+function showBank() {
+  var banked = getBankedWords();
+  if (!banked.length) {
+    alert("Votre banque est vide.\n\nJouez pour y ajouter des mots !");
+    return;
   }
-  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Fiches LinguaBandit</title>'
-    +'<style>body{font-family:Georgia,serif;padding:20px}h1{color:#003366;font-size:20px;margin-bottom:16px}'
-    +'.sub{font-size:13px;color:#888;margin-bottom:20px}'
-    +'.grid{display:flex;flex-wrap:wrap;gap:16px}'
-    +'.card{width:200px;border:2px solid #003366;border-radius:10px;padding:14px;break-inside:avoid}'
-    +'.word{font-size:22px;font-weight:bold;color:#003366;margin-bottom:12px;text-align:center;border-bottom:1px solid #ccc;padding-bottom:8px}'
-    +'.field{margin-bottom:10px}.field label{display:block;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#999;font-weight:bold;margin-bottom:2px}'
-    +'.line{border-bottom:1px solid #ddd;height:18px}'
-    +'@media print{button{display:none}}<\/style><\/head><body>'
-    +'<h1>Mes Fiches - LinguaBandit</h1>'
-    +'<div class="sub">Remplissez chaque fiche vous-meme : genre, categorie, traduction, phrase exemple.</div>'
-    +'<div class="grid">'+cards+'<\/div>'
-    +'<br><button onclick="window.print()" style="padding:12px 24px;background:#003366;color:white;border:none;border-radius:8px;font-size:16px;cursor:pointer">Imprimer</button>'
-    +'<\/body><\/html>';
-  var win=window.open('','_blank');
+  /* Show expiring words warning if any */
+  var expiring = (CODE !== "DEMO") ? Store.getExpiringWords(CODE, 7) : [];
+  var expiryNote = '';
+  if (expiring.length > 0) {
+    var names = expiring.map(function(e){
+      return e.word + ' (' + Store.daysUntilExpiry(e) + 'j)';
+    }).join(', ');
+    expiryNote = '\n\nExpirent bientot : ' + names;
+  }
+  alert("Votre banque (" + banked.length + " mots) :\n\n"
+    + banked.sort().join(", ")
+    + expiryNote
+    + "\n\nAllez dans Mes Fiches pour imprimer.");
+}
+
+function showFlashcards() {
+  var banked = getBankedWords();
+  if (!banked.length) {
+    alert("Votre banque est vide - jouez dabord !");
+    return;
+  }
+  var sorted = banked.slice().sort();
+  var cards  = '';
+  for (var i = 0; i < sorted.length; i++) {
+    cards += '<div class="card"><div class="word">' + sorted[i] + '<\/div>'
+      + '<div class="field"><label>Genre</label><div class="line"></div></div>'
+      + '<div class="field"><label>Cat&eacute;gorie</label><div class="line"></div></div>'
+      + '<div class="field"><label>Traduction</label><div class="line"></div></div>'
+      + '<div class="field"><label>Phrase exemple</label><div class="line"></div><div class="line"></div></div>'
+      + '<\/div>';
+  }
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Fiches LinguaBandit</title>'
+    + '<style>body{font-family:Georgia,serif;padding:20px}h1{color:#003366;font-size:20px;margin-bottom:16px}'
+    + '.sub{font-size:13px;color:#888;margin-bottom:20px}'
+    + '.grid{display:flex;flex-wrap:wrap;gap:16px}'
+    + '.card{width:200px;border:2px solid #003366;border-radius:10px;padding:14px;break-inside:avoid}'
+    + '.word{font-size:22px;font-weight:bold;color:#003366;margin-bottom:12px;text-align:center;border-bottom:1px solid #ccc;padding-bottom:8px}'
+    + '.field{margin-bottom:10px}.field label{display:block;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#999;font-weight:bold;margin-bottom:2px}'
+    + '.line{border-bottom:1px solid #ddd;height:18px}'
+    + '@media print{button{display:none}}<\/style><\/head><body>'
+    + '<h1>Mes Fiches - LinguaBandit</h1>'
+    + '<div class="sub">Remplissez chaque fiche vous-meme : genre, categorie, traduction, phrase exemple.</div>'
+    + '<div class="grid">' + cards + '<\/div>'
+    + '<br><button onclick="window.print()" style="padding:12px 24px;background:#003366;color:white;border:none;border-radius:8px;font-size:16px;cursor:pointer">Imprimer</button>'
+    + '<\/body><\/html>';
+  var win = window.open('', '_blank');
   win.document.write(html);
   win.document.close();
 }
 
-function showAdmin(){
-  alert("Panneau Admin\n\nA venir :\n- Charger une liste de mots\n- Configurer tours / credits\n- Gerer les eleves\n- Recharger les Francs");
+function showAdmin() {
+  var shareURL = (CODE && CODE !== "DEMO") ? Store.getShareURL(CODE) : "Aucun pack charge";
+  alert("Panneau Admin\n\nPack actuel : " + (PACK.label || CODE)
+    + "\nCode : " + CODE
+    + "\nURL a partager : " + shareURL
+    + "\n\nA venir :\n- Creer et configurer des packs\n- Charger une liste de mots\n- Gerer les eleves\n- Recharger les Francs");
 }
 
-initState();
-buildReels();
-render();
+/* ══════════════════════════════════════════
+   START
+   ══════════════════════════════════════════ */
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
 </script>
 </body>
 </html>
