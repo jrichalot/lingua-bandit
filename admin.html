@@ -1,0 +1,2187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LinguaBandit — Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="js/store.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --navy:    #0F1929;
+  --navy2:   #182236;
+  --navy3:   #1E2D47;
+  --gold:    #FFC72C;
+  --gold2:   #D4A000;
+  --gold3:   #FFE882;
+  --blue:    #2D7DD2;
+  --blue2:   #1A5FA8;
+  --red:     #E8112D;
+  --green:   #2EC27E;
+  --green2:  #1A8A56;
+  --amber:   #F59E0B;
+  --white:   #FFFFFF;
+  --gray1:   #F4F6FA;
+  --gray2:   #E8ECF4;
+  --gray3:   #C8D0E0;
+  --gray4:   #8896B0;
+  --gray5:   #4A5568;
+  --text:    #1A2340;
+  --radius:  10px;
+  --shadow:  0 2px 8px rgba(0,0,0,0.12);
+  --shadow2: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+body{
+  font-family:'Nunito',sans-serif;
+  background:var(--gray1);
+  color:var(--text);
+  min-height:100vh;
+  display:flex;
+}
+
+/* ── SIDEBAR ── */
+.sidebar{
+  width:220px;
+  min-width:220px;
+  background:var(--navy);
+  display:flex;
+  flex-direction:column;
+  padding:0;
+  position:fixed;
+  top:0;bottom:0;left:0;
+  z-index:100;
+}
+
+.sidebar-logo{
+  padding:24px 20px 20px;
+  border-bottom:1px solid rgba(255,255,255,0.08);
+}
+
+.sidebar-logo .logo-name{
+  font-family:'Fredoka One',sans-serif;
+  font-size:20px;
+  color:var(--gold);
+  display:block;
+  text-shadow:0 0 12px rgba(255,199,44,0.4);
+}
+
+.sidebar-logo .logo-sub{
+  font-size:10px;
+  letter-spacing:2px;
+  color:rgba(255,255,255,0.35);
+  text-transform:uppercase;
+  margin-top:2px;
+}
+
+.sidebar-nav{
+  flex:1;
+  padding:16px 0;
+}
+
+.nav-item{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:11px 20px;
+  font-size:14px;
+  font-weight:700;
+  color:rgba(255,255,255,0.55);
+  cursor:pointer;
+  transition:all 0.15s;
+  border-left:3px solid transparent;
+  user-select:none;
+}
+
+.nav-item:hover{
+  color:rgba(255,255,255,0.85);
+  background:rgba(255,255,255,0.05);
+}
+
+.nav-item.active{
+  color:var(--gold);
+  border-left-color:var(--gold);
+  background:rgba(255,199,44,0.07);
+}
+
+.nav-icon{
+  width:18px;height:18px;
+  flex-shrink:0;
+  opacity:0.7;
+}
+
+.nav-item.active .nav-icon{ opacity:1; }
+
+.sidebar-footer{
+  padding:16px 20px;
+  border-top:1px solid rgba(255,255,255,0.08);
+  font-size:11px;
+  color:rgba(255,255,255,0.25);
+}
+
+/* ── MAIN CONTENT ── */
+.main{
+  margin-left:220px;
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  min-height:100vh;
+}
+
+.topbar{
+  background:var(--white);
+  border-bottom:1px solid var(--gray2);
+  padding:16px 32px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  position:sticky;
+  top:0;
+  z-index:50;
+}
+
+.topbar-title{
+  font-size:20px;
+  font-weight:800;
+  color:var(--text);
+}
+
+.topbar-actions{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+
+.content{
+  flex:1;
+  padding:32px;
+}
+
+/* ── CARDS ── */
+.card{
+  background:var(--white);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  padding:24px;
+  margin-bottom:20px;
+}
+
+.card-title{
+  font-size:15px;
+  font-weight:800;
+  color:var(--text);
+  margin-bottom:16px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+/* ── BUTTONS ── */
+.btn{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:9px 16px;
+  border:none;
+  border-radius:8px;
+  font-family:'Nunito',sans-serif;
+  font-size:13px;
+  font-weight:700;
+  cursor:pointer;
+  transition:all 0.15s;
+  text-decoration:none;
+  white-space:nowrap;
+}
+
+.btn-primary{
+  background:var(--blue);
+  color:var(--white);
+  box-shadow:0 3px 0 var(--blue2);
+  position:relative;top:0;
+}
+.btn-primary:hover{ background:#3A8DE0; }
+.btn-primary:active{ top:2px; box-shadow:0 1px 0 var(--blue2); }
+
+.btn-gold{
+  background:var(--gold);
+  color:var(--navy);
+  box-shadow:0 3px 0 var(--gold2);
+  position:relative;top:0;
+}
+.btn-gold:hover{ background:#FFD040; }
+.btn-gold:active{ top:2px; box-shadow:0 1px 0 var(--gold2); }
+
+.btn-green{
+  background:var(--green);
+  color:var(--white);
+  box-shadow:0 3px 0 var(--green2);
+  position:relative;top:0;
+}
+.btn-green:hover{ background:#38D48A; }
+.btn-green:active{ top:2px; box-shadow:0 1px 0 var(--green2); }
+
+.btn-danger{
+  background:transparent;
+  color:var(--red);
+  border:1.5px solid rgba(232,17,45,0.3);
+}
+.btn-danger:hover{ background:rgba(232,17,45,0.06); border-color:var(--red); }
+
+.btn-ghost{
+  background:transparent;
+  color:var(--gray5);
+  border:1.5px solid var(--gray3);
+}
+.btn-ghost:hover{ background:var(--gray1); color:var(--text); }
+
+.btn:disabled{
+  opacity:0.45;
+  cursor:not-allowed;
+  transform:none !important;
+  box-shadow:none !important;
+}
+
+.btn-sm{ padding:6px 12px; font-size:12px; }
+.btn-lg{ padding:13px 24px; font-size:15px; }
+
+/* ── FORM ELEMENTS ── */
+.form-group{ margin-bottom:16px; }
+.form-label{
+  display:block;
+  font-size:12px;
+  font-weight:800;
+  color:var(--gray5);
+  letter-spacing:0.5px;
+  text-transform:uppercase;
+  margin-bottom:6px;
+}
+.form-input,.form-select,.form-textarea{
+  width:100%;
+  padding:10px 12px;
+  border:1.5px solid var(--gray3);
+  border-radius:8px;
+  font-family:'Nunito',sans-serif;
+  font-size:14px;
+  font-weight:600;
+  color:var(--text);
+  background:var(--white);
+  transition:border-color 0.15s;
+  outline:none;
+}
+.form-input:focus,.form-select:focus,.form-textarea:focus{
+  border-color:var(--blue);
+  box-shadow:0 0 0 3px rgba(45,125,210,0.12);
+}
+.form-textarea{ resize:vertical; min-height:90px; }
+.form-hint{
+  font-size:11px;
+  color:var(--gray4);
+  margin-top:4px;
+  line-height:1.4;
+}
+
+/* ── PACK LIST ── */
+.pack-list{ display:flex; flex-direction:column; gap:12px; }
+
+.pack-item{
+  background:var(--white);
+  border:1.5px solid var(--gray2);
+  border-radius:var(--radius);
+  padding:16px 20px;
+  display:flex;
+  align-items:center;
+  gap:16px;
+  transition:border-color 0.15s, box-shadow 0.15s;
+}
+.pack-item:hover{ border-color:var(--gray3); box-shadow:var(--shadow); }
+
+.pack-badge{
+  width:44px;height:44px;
+  border-radius:10px;
+  background:linear-gradient(135deg,var(--navy2),var(--navy3));
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.pack-badge-text{
+  font-family:'Fredoka One',sans-serif;
+  font-size:11px;
+  color:var(--gold);
+  letter-spacing:1px;
+}
+
+.pack-info{ flex:1; min-width:0; }
+.pack-name{
+  font-size:15px;font-weight:800;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.pack-meta{
+  font-size:11px;color:var(--gray4);margin-top:2px;
+}
+
+.pack-actions{ display:flex; gap:6px; flex-shrink:0; }
+
+.pack-code{
+  font-family:'Courier New',monospace;
+  font-size:11px;
+  background:var(--gray1);
+  border:1px solid var(--gray2);
+  border-radius:6px;
+  padding:3px 8px;
+  color:var(--gray5);
+  letter-spacing:1px;
+}
+
+/* ── STEPS ── */
+.steps-nav{
+  display:flex;
+  gap:0;
+  margin-bottom:28px;
+  border-radius:var(--radius);
+  overflow:hidden;
+  border:1.5px solid var(--gray2);
+  background:var(--white);
+}
+
+.step-tab{
+  flex:1;
+  padding:12px 8px;
+  text-align:center;
+  font-size:12px;
+  font-weight:800;
+  color:var(--gray4);
+  background:var(--white);
+  cursor:pointer;
+  border-right:1.5px solid var(--gray2);
+  transition:all 0.15s;
+  user-select:none;
+}
+.step-tab:last-child{ border-right:none; }
+.step-tab.active{ background:var(--navy); color:var(--gold); }
+.step-tab.done{ background:var(--gray1); color:var(--green); }
+.step-tab.disabled{ cursor:not-allowed; opacity:0.5; }
+
+.step-num{
+  display:block;
+  font-size:18px;
+  font-family:'Fredoka One',sans-serif;
+  line-height:1;
+  margin-bottom:2px;
+}
+
+/* ── DRUM COLUMNS ── */
+.drums-grid{
+  display:flex;
+  gap:12px;
+  margin-top:8px;
+  overflow-x:auto;
+  padding-bottom:4px;
+}
+
+.drum-col{
+  flex:1;
+  min-width:140px;
+  background:var(--gray1);
+  border:2px solid var(--gray2);
+  border-radius:var(--radius);
+  padding:12px;
+  transition:border-color 0.2s;
+}
+.drum-col.drag-over{ border-color:var(--blue); background:rgba(45,125,210,0.05); }
+
+.drum-col-header{
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:1px;
+  text-transform:uppercase;
+  color:var(--gray5);
+  margin-bottom:10px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+
+.drum-col-words{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  min-height:60px;
+}
+
+.word-chip{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:7px 10px;
+  border-radius:7px;
+  font-size:13px;
+  font-weight:700;
+  background:var(--white);
+  border:1.5px solid var(--gray2);
+  cursor:grab;
+  user-select:none;
+  transition:all 0.15s;
+  gap:6px;
+}
+.word-chip:hover{ border-color:var(--blue); box-shadow:var(--shadow); }
+.word-chip.dragging{ opacity:0.4; cursor:grabbing; }
+.word-chip.flagged{
+  border-color:var(--amber);
+  background:#FFFBEB;
+}
+.word-chip.flagged .chip-word{ color:var(--amber); }
+
+.chip-word{ font-family:'Fredoka One',sans-serif; letter-spacing:0.5px; }
+.chip-flag{ font-size:12px; flex-shrink:0; }
+.chip-remove{
+  width:16px;height:16px;
+  border-radius:50%;
+  border:none;
+  background:var(--gray2);
+  color:var(--gray5);
+  cursor:pointer;
+  font-size:10px;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+  transition:all 0.15s;
+  line-height:1;
+  padding:0;
+}
+.chip-remove:hover{ background:var(--red); color:var(--white); }
+
+.drum-add-input{
+  width:100%;
+  padding:6px 8px;
+  border:1.5px dashed var(--gray3);
+  border-radius:7px;
+  font-family:'Nunito',sans-serif;
+  font-size:12px;
+  font-weight:700;
+  color:var(--text);
+  background:transparent;
+  margin-top:6px;
+  outline:none;
+  transition:border-color 0.15s;
+  text-transform:uppercase;
+}
+.drum-add-input::placeholder{ text-transform:none;color:var(--gray4); }
+.drum-add-input:focus{ border-color:var(--blue); border-style:solid; background:var(--white); }
+
+/* ── AI LOADING ── */
+.ai-loading{
+  display:none;
+  align-items:center;
+  gap:10px;
+  padding:14px 16px;
+  background:rgba(45,125,210,0.06);
+  border:1.5px solid rgba(45,125,210,0.2);
+  border-radius:var(--radius);
+  margin-bottom:16px;
+}
+.ai-loading.visible{ display:flex; }
+.ai-spinner{
+  width:18px;height:18px;
+  border:2.5px solid var(--gray2);
+  border-top-color:var(--blue);
+  border-radius:50%;
+  animation:spin 0.7s linear infinite;
+  flex-shrink:0;
+}
+@keyframes spin{ to{ transform:rotate(360deg); } }
+.ai-loading-text{ font-size:13px; font-weight:700; color:var(--blue); }
+
+/* ── FLAGGED LEGEND ── */
+.flag-legend{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:11px;
+  color:var(--amber);
+  font-weight:700;
+  margin-bottom:10px;
+}
+
+/* ── PRELOADED BANK ── */
+.preload-chips{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:8px;
+  min-height:36px;
+  padding:8px;
+  border:1.5px dashed var(--gray3);
+  border-radius:var(--radius);
+}
+
+.preload-chip{
+  display:flex;align-items:center;gap:5px;
+  padding:5px 10px;
+  border-radius:20px;
+  font-family:'Fredoka One',sans-serif;
+  font-size:13px;
+  background:var(--navy);
+  color:var(--gold3);
+  border:1.5px solid var(--navy3);
+}
+.preload-chip button{
+  background:none;border:none;color:rgba(255,255,255,0.4);
+  cursor:pointer;font-size:12px;padding:0;line-height:1;
+}
+.preload-chip button:hover{ color:var(--white); }
+.preload-chip.perm::after{
+  content:'★';font-size:9px;color:var(--gold);margin-left:2px;
+}
+
+/* ── CONFIG GRID ── */
+.config-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+  gap:14px;
+}
+
+/* ── SHARE URL BOX ── */
+.share-box{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  background:var(--gray1);
+  border:1.5px solid var(--gray2);
+  border-radius:var(--radius);
+  padding:12px 14px;
+}
+.share-url{
+  flex:1;
+  font-family:'Courier New',monospace;
+  font-size:13px;
+  color:var(--blue);
+  word-break:break-all;
+  line-height:1.4;
+}
+
+/* ── EMPTY STATE ── */
+.empty-state{
+  text-align:center;
+  padding:48px 24px;
+  color:var(--gray4);
+}
+.empty-icon{ font-size:40px; margin-bottom:12px; opacity:0.5; }
+.empty-title{ font-size:16px; font-weight:800; color:var(--gray5); margin-bottom:6px; }
+.empty-desc{ font-size:13px; line-height:1.5; }
+
+/* ── ALERT / TOAST ── */
+.toast{
+  position:fixed;
+  bottom:24px;right:24px;
+  padding:12px 18px;
+  border-radius:var(--radius);
+  font-size:13px;font-weight:700;
+  box-shadow:var(--shadow2);
+  z-index:999;
+  transform:translateY(80px);
+  opacity:0;
+  transition:all 0.3s;
+  max-width:320px;
+}
+.toast.show{ transform:translateY(0); opacity:1; }
+.toast.success{ background:var(--green); color:var(--white); }
+.toast.error{ background:var(--red); color:var(--white); }
+.toast.info{ background:var(--navy); color:var(--gold3); }
+
+/* ── PASSWORD SCREEN ── */
+.pw-screen{
+  position:fixed;inset:0;
+  background:var(--navy);
+  display:flex;align-items:center;justify-content:center;
+  z-index:1000;
+  flex-direction:column;
+  gap:24px;
+  padding:32px;
+}
+.pw-screen.hidden{ display:none; }
+.pw-logo{
+  font-family:'Fredoka One',sans-serif;
+  font-size:32px;
+  color:var(--gold);
+  text-shadow:0 0 20px rgba(255,199,44,0.4);
+  text-align:center;
+}
+.pw-sub{
+  font-size:12px;letter-spacing:3px;
+  color:rgba(255,255,255,0.3);
+  text-transform:uppercase;
+  text-align:center;
+  margin-top:-16px;
+}
+.pw-box{
+  background:var(--navy2);
+  border-radius:16px;
+  padding:32px;
+  width:min(380px,90vw);
+  border:1px solid rgba(255,255,255,0.08);
+}
+.pw-box h2{
+  font-size:16px;font-weight:800;
+  color:var(--white);margin-bottom:6px;
+}
+.pw-box p{
+  font-size:13px;color:rgba(255,255,255,0.45);
+  margin-bottom:20px;line-height:1.5;
+}
+.pw-input{
+  width:100%;padding:12px 14px;
+  border:1.5px solid rgba(255,255,255,0.1);
+  border-radius:8px;
+  background:rgba(255,255,255,0.06);
+  color:var(--white);
+  font-family:'Nunito',sans-serif;
+  font-size:15px;font-weight:700;
+  outline:none;
+  margin-bottom:12px;
+  transition:border-color 0.15s;
+}
+.pw-input:focus{ border-color:var(--gold); }
+.pw-input::placeholder{ color:rgba(255,255,255,0.2); }
+.pw-error{
+  font-size:12px;color:var(--red);
+  margin-bottom:10px;display:none;
+}
+.pw-error.visible{ display:block; }
+
+/* ── TOP UP PANEL ── */
+.topup-panel{
+  display:none;
+  position:fixed;inset:0;
+  background:rgba(0,0,20,0.85);
+  backdrop-filter:blur(6px);
+  z-index:500;
+  align-items:center;justify-content:center;
+  padding:24px;
+}
+.topup-panel.open{ display:flex; }
+.topup-box{
+  background:var(--white);
+  border-radius:16px;
+  padding:28px;
+  width:min(380px,90vw);
+  box-shadow:0 20px 60px rgba(0,0,0,0.3);
+}
+.topup-box h2{
+  font-size:20px;font-weight:800;color:var(--text);margin-bottom:6px;
+}
+.topup-box p{ font-size:13px;color:var(--gray4);margin-bottom:20px;line-height:1.5; }
+.topup-current{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px;
+  background:var(--gray1);
+  border-radius:8px;
+  margin-bottom:16px;
+  font-weight:700;font-size:14px;
+}
+.topup-balance{
+  font-family:'Fredoka One',sans-serif;
+  font-size:24px;color:var(--gold2);
+}
+
+/* ── SETTINGS ── */
+.danger-zone{
+  border:1.5px solid rgba(232,17,45,0.2);
+  border-radius:var(--radius);
+  padding:20px;
+  background:rgba(232,17,45,0.02);
+}
+.danger-zone-title{
+  font-size:13px;font-weight:800;color:var(--red);
+  margin-bottom:14px;letter-spacing:0.5px;
+  text-transform:uppercase;
+}
+
+/* ── RESPONSIVE ── */
+@media(max-width:640px){
+  .sidebar{ width:60px; min-width:60px; }
+  .sidebar-logo .logo-name,.sidebar-logo .logo-sub,.nav-item span,.sidebar-footer{ display:none; }
+  .nav-item{ justify-content:center;padding:14px; }
+  .main{ margin-left:60px; }
+  .content{ padding:16px; }
+  .topbar{ padding:12px 16px; }
+  .drums-grid{ flex-direction:column; }
+}
+</style>
+</head>
+<body>
+
+<!-- PASSWORD SCREEN -->
+<div class="pw-screen" id="pw-screen">
+  <div class="pw-logo">LinguaBandit</div>
+  <div class="pw-sub">Admin Panel</div>
+  <div class="pw-box" id="pw-box">
+    <h2 id="pw-title">Welcome</h2>
+    <p id="pw-desc">Loading...</p>
+    <input type="password" class="pw-input" id="pw-input"
+      placeholder="Enter password" autocomplete="current-password">
+    <div class="pw-error" id="pw-error">Incorrect password. Try again.</div>
+    <button class="btn btn-gold btn-lg" style="width:100%" onclick="submitPassword()">
+      Enter
+    </button>
+  </div>
+</div>
+
+<!-- TOP UP PANEL -->
+<div class="topup-panel" id="topup-panel">
+  <div class="topup-box">
+    <h2>Top Up &#8371; Francs</h2>
+    <p>Add francs to the current pack on this device. Use the hidden gesture on the student's device to access this.</p>
+    <div class="topup-current">
+      <span>Current balance</span>
+      <span class="topup-balance">&#8371; <span id="topup-current-val">—</span></span>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Pack code</label>
+      <input type="text" class="form-input" id="topup-code"
+        placeholder="e.g. FR-CK-49" style="text-transform:uppercase;font-family:monospace">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Amount to add</label>
+      <input type="number" class="form-input" id="topup-amount"
+        min="1" max="100" value="10">
+    </div>
+    <div style="display:flex;gap:10px;margin-top:4px">
+      <button class="btn btn-gold btn-lg" style="flex:1" onclick="confirmTopUp()">
+        Add Francs
+      </button>
+      <button class="btn btn-ghost" onclick="closeTopUp()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <span class="logo-name">LinguaBandit</span>
+    <span class="logo-sub">Admin Panel</span>
+  </div>
+  <div class="sidebar-nav">
+    <div class="nav-item active" onclick="showSection('packs')" id="nav-packs">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+        <line x1="8" y1="21" x2="16" y2="21"></line>
+        <line x1="12" y1="17" x2="12" y2="21"></line>
+      </svg>
+      <span>Packs</span>
+    </div>
+    <div class="nav-item" onclick="showSection('create')" id="nav-create">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="16"></line>
+        <line x1="8" y1="12" x2="16" y2="12"></line>
+      </svg>
+      <span>New Pack</span>
+    </div>
+    <div class="nav-item" onclick="showSection('topup')" id="nav-topup">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="1" x2="12" y2="23"></line>
+        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+      </svg>
+      <span>Top Up</span>
+    </div>
+    <div class="nav-item" onclick="showSection('settings')" id="nav-settings">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+      <span>Settings</span>
+    </div>
+  </div>
+  <div class="sidebar-footer">v1.0 &bull; LinguaBandit</div>
+</nav>
+
+<!-- MAIN -->
+<div class="main">
+
+  <div class="topbar">
+    <div class="topbar-title" id="topbar-title">Packs</div>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost btn-sm" onclick="window.close()">
+        &#8592; Back to game
+      </button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ══ PACKS SECTION ══ -->
+    <div id="section-packs">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div>
+          <div style="font-size:22px;font-weight:800;color:var(--text)">Your Packs</div>
+          <div style="font-size:13px;color:var(--gray4);margin-top:2px">
+            All packs stored on this device
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="showSection('create');startNewPack()">
+          + New Pack
+        </button>
+      </div>
+      <div class="pack-list" id="pack-list">
+        <!-- populated by JS -->
+      </div>
+    </div>
+
+    <!-- ══ CREATE / EDIT SECTION ══ -->
+    <div id="section-create" style="display:none">
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div>
+          <div style="font-size:22px;font-weight:800;color:var(--text)" id="create-title">
+            New Pack
+          </div>
+          <div style="font-size:13px;color:var(--gray4);margin-top:2px" id="create-subtitle">
+            Set up a vocabulary pack for your class
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="showSection('packs')">
+          Cancel
+        </button>
+      </div>
+
+      <!-- Step tabs -->
+      <div class="steps-nav" id="steps-nav">
+        <div class="step-tab active" id="tab-1" onclick="goToStep(1)">
+          <span class="step-num">1</span>Details
+        </div>
+        <div class="step-tab disabled" id="tab-2" onclick="goToStep(2)">
+          <span class="step-num">2</span>Words
+        </div>
+        <div class="step-tab disabled" id="tab-3" onclick="goToStep(3)">
+          <span class="step-num">3</span>Drums
+        </div>
+        <div class="step-tab disabled" id="tab-4" onclick="goToStep(4)">
+          <span class="step-num">4</span>Bank
+        </div>
+        <div class="step-tab disabled" id="tab-5" onclick="goToStep(5)">
+          <span class="step-num">5</span>Config
+        </div>
+        <div class="step-tab disabled" id="tab-6" onclick="goToStep(6)">
+          <span class="step-num">6</span>Save
+        </div>
+      </div>
+
+      <!-- Step 1: Details -->
+      <div class="card" id="step-1">
+        <div class="card-title">Pack details</div>
+        <div class="form-group">
+          <label class="form-label">Pack label</label>
+          <input type="text" class="form-input" id="p-label"
+            placeholder="e.g. Class 3A — Home vocabulary">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div class="form-group">
+            <label class="form-label">Language</label>
+            <select class="form-select" id="p-lang">
+              <option value="fr">French (FR)</option>
+              <option value="ja" disabled>Japanese (coming soon)</option>
+              <option value="zh" disabled>Chinese (coming soon)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Number of drums</label>
+            <select class="form-select" id="p-reels">
+              <option value="3">3 drums</option>
+              <option value="4">4 drums</option>
+              <option value="5">5 drums</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Complexity</label>
+          <select class="form-select" id="p-complexity">
+            <option value="simple">Simple — uses Claude Haiku (faster, cheaper)</option>
+            <option value="complex">Complex — uses Claude Sonnet (pronouns, compound tenses)</option>
+          </select>
+          <div class="form-hint">
+            Simple covers articles, nouns, adjectives. Complex covers pronouns,
+            auxiliary verbs, compound tenses.
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:8px">
+          <button class="btn btn-primary" onclick="step1Next()">Next &rarr;</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Words -->
+      <div class="card" id="step-2" style="display:none">
+        <div class="card-title">Word list</div>
+        <div class="form-group">
+          <label class="form-label">Paste your word list (comma-separated)</label>
+          <textarea class="form-textarea" id="p-wordlist"
+            placeholder="la, le, les, une, maison, chat, chien, bleue, rouge, grand, petit..."
+            style="min-height:120px"></textarea>
+          <div class="form-hint">
+            Separate words with commas. Uppercase or lowercase — the game
+            displays everything in uppercase. Words can appear on multiple drums.
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:8px">
+          <button class="btn btn-ghost" onclick="goToStep(1)">&larr; Back</button>
+          <button class="btn btn-primary" onclick="step2Next()">
+            Get AI Drum Suggestion &rarr;
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 3: Drums -->
+      <div class="card" id="step-3" style="display:none">
+        <div class="card-title">Drum assignment</div>
+
+        <div class="ai-loading" id="ai-loading">
+          <div class="ai-spinner"></div>
+          <div class="ai-loading-text">
+            Claude is suggesting drum assignments...
+          </div>
+        </div>
+
+        <div id="drum-editor" style="display:none">
+          <div class="flag-legend" id="flag-legend" style="display:none">
+            &#9888; Amber words are flagged by AI — review before saving
+          </div>
+          <p style="font-size:12px;color:var(--gray4);margin-bottom:12px">
+            Drag words between drums to <strong>move</strong> them.
+            Hold <kbd style="background:var(--gray2);border-radius:4px;padding:1px 5px;font-size:11px">Alt</kbd> / <kbd style="background:var(--gray2);border-radius:4px;padding:1px 5px;font-size:11px">Option</kbd>
+            while dragging to <strong>copy</strong> to another drum.
+            Type in the input below each drum to add words manually.
+            Click &times; to remove from a drum.
+          </p>
+          <div class="drums-grid" id="drums-grid">
+            <!-- populated by JS -->
+          </div>
+          <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--gray2);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="suggestMoreWords()" id="btn-suggest-more">
+              &#10024; Suggest more words
+            </button>
+            <span style="font-size:11px;color:var(--gray4)">
+              Ask Claude to suggest additional words that increase valid alignments
+            </span>
+          </div>
+          <div class="ai-loading" id="ai-loading-more" style="margin-top:10px">
+            <div class="ai-spinner"></div>
+            <div class="ai-loading-text">Claude is suggesting additional words...</div>
+          </div>
+          <div id="suggest-more-result" style="display:none;margin-top:12px"></div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;margin-top:16px">
+          <button class="btn btn-ghost" onclick="goToStep(2)">&larr; Back</button>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost" onclick="retryAI()">
+              &#8635; Re-run AI
+            </button>
+            <button class="btn btn-primary" onclick="goToStep(4)">Next &rarr;</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 4: Preloaded Bank -->
+      <div class="card" id="step-4" style="display:none">
+        <div class="card-title">Preloaded word bank</div>
+        <p style="font-size:13px;color:var(--gray4);margin-bottom:16px;line-height:1.5">
+          These words are placed in every student's bank when they first open
+          this pack. Permanent words never expire. Articles (LA, LE, LES) are
+          good candidates — they ensure students always have joker options.
+        </p>
+        <div class="form-group">
+          <label class="form-label">Add a word to preload</label>
+          <div style="display:flex;gap:8px">
+            <input type="text" class="form-input" id="preload-input"
+              placeholder="e.g. LA" style="text-transform:uppercase;font-family:monospace"
+              onkeydown="if(event.key==='Enter')addPreloadWord()">
+            <label style="display:flex;align-items:center;gap:5px;white-space:nowrap;font-size:13px;font-weight:700;color:var(--gray5);cursor:pointer">
+              <input type="checkbox" id="preload-perm" checked> Permanent
+            </label>
+            <button class="btn btn-primary" onclick="addPreloadWord()">Add</button>
+          </div>
+          <div class="form-hint">
+            Permanent words cannot expire and cannot be lost through wrong use.
+          </div>
+        </div>
+        <div class="preload-chips" id="preload-chips">
+          <span style="font-size:12px;color:var(--gray4);align-self:center">
+            No preloaded words yet
+          </span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:16px">
+          <button class="btn btn-ghost" onclick="goToStep(3)">&larr; Back</button>
+          <button class="btn btn-primary" onclick="goToStep(5)">Next &rarr;</button>
+        </div>
+      </div>
+
+      <!-- Step 5: Config -->
+      <div class="card" id="step-5" style="display:none">
+        <div class="card-title">Game configuration</div>
+        <div class="config-grid">
+          <div class="form-group">
+            <label class="form-label">Starting &#8371; Francs</label>
+            <input type="number" class="form-input" id="cfg-francs"
+              min="5" max="200" value="20">
+            <div class="form-hint">Given to each student on first play</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Max spins per session</label>
+            <input type="number" class="form-input" id="cfg-spins"
+              min="1" max="20" value="5">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Spin cost (&#8371;)</label>
+            <input type="number" class="form-input" id="cfg-cost"
+              min="1" max="10" value="1">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Wrong submission penalty (&#8371;)</label>
+            <input type="number" class="form-input" id="cfg-penalty"
+              min="1" max="20" value="3">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Mastery threshold</label>
+            <input type="number" class="form-input" id="cfg-mastery"
+              min="1" max="10" value="3">
+            <div class="form-hint">Correct submissions before banking</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Word expiry (days)</label>
+            <input type="number" class="form-input" id="cfg-expiry"
+              min="1" max="365" value="30">
+            <div class="form-hint">Days before unplayed banked words expire</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Joker probability (%)</label>
+            <input type="number" class="form-input" id="cfg-joker"
+              min="0" max="50" value="10">
+            <div class="form-hint">Chance per reel per spin</div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:8px">
+          <button class="btn btn-ghost" onclick="goToStep(4)">&larr; Back</button>
+          <button class="btn btn-primary" onclick="goToStep(6)">Preview &rarr;</button>
+        </div>
+      </div>
+
+      <!-- Step 6: Save -->
+      <div class="card" id="step-6" style="display:none">
+        <div class="card-title">Save pack</div>
+        <div id="preview-summary" style="margin-bottom:20px"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <button class="btn btn-ghost" onclick="goToStep(5)">&larr; Back</button>
+          <button class="btn btn-green btn-lg" id="btn-save-pack" onclick="savePack()">
+            Save &amp; Generate URL
+          </button>
+        </div>
+        <div id="save-result" style="display:none;margin-top:20px">
+          <div style="font-size:15px;font-weight:800;color:var(--green);margin-bottom:12px">
+            &#10003; Pack saved successfully!
+          </div>
+          <label class="form-label">Share this URL with your students</label>
+          <div class="share-box">
+            <div class="share-url" id="share-url-text"></div>
+            <button class="btn btn-primary btn-sm" onclick="copyShareURL()">Copy</button>
+          </div>
+          <div style="margin-top:12px;font-size:12px;color:var(--gray4);line-height:1.5">
+            Students open this URL to play. Each device remembers its own
+            progress independently.
+          </div>
+          <div style="display:flex;gap:10px;margin-top:16px">
+            <button class="btn btn-ghost" onclick="showSection('packs')">
+              Back to packs
+            </button>
+            <button class="btn btn-primary" onclick="startNewPack()">
+              Create another pack
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /section-create -->
+
+    <!-- ══ TOP UP SECTION ══ -->
+    <div id="section-topup" style="display:none">
+      <div style="margin-bottom:20px">
+        <div style="font-size:22px;font-weight:800;color:var(--text)">Top Up Francs</div>
+        <div style="font-size:13px;color:var(--gray4);margin-top:2px">
+          Add &#8371; Francs to a pack on this device
+        </div>
+      </div>
+      <div class="card" style="max-width:440px">
+        <div class="card-title">Add &#8371; Francs</div>
+        <div class="form-group">
+          <label class="form-label">Pack code</label>
+          <input type="text" class="form-input" id="tu-code"
+            placeholder="e.g. FR-CK-49"
+            style="text-transform:uppercase;font-family:monospace;letter-spacing:2px"
+            oninput="lookupTopUpPack()" onkeyup="this.value=this.value.toUpperCase()">
+          <div class="form-hint" id="tu-pack-name" style="color:var(--green)"></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Amount to add</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="setTopUpAmount(5)">+5</button>
+            <button class="btn btn-ghost btn-sm" onclick="setTopUpAmount(10)">+10</button>
+            <button class="btn btn-ghost btn-sm" onclick="setTopUpAmount(20)">+20</button>
+            <button class="btn btn-ghost btn-sm" onclick="setTopUpAmount(50)">+50</button>
+            <input type="number" class="form-input" id="tu-amount"
+              min="1" max="200" value="10"
+              style="width:80px;flex-shrink:0">
+          </div>
+        </div>
+        <div class="topup-current" id="tu-balance-row" style="display:none">
+          <span>Current balance</span>
+          <span class="topup-balance">&#8371; <span id="tu-balance">—</span></span>
+        </div>
+        <button class="btn btn-gold btn-lg" style="width:100%;margin-top:8px"
+          onclick="doTopUp()" id="btn-topup" disabled>
+          Add Francs
+        </button>
+        <div id="tu-result" style="display:none;margin-top:12px;font-size:13px;font-weight:700;color:var(--green)"></div>
+      </div>
+    </div>
+
+    <!-- ══ SETTINGS SECTION ══ -->
+    <div id="section-settings" style="display:none">
+      <div style="margin-bottom:20px">
+        <div style="font-size:22px;font-weight:800;color:var(--text)">Settings</div>
+        <div style="font-size:13px;color:var(--gray4);margin-top:2px">
+          Admin password, data export and import
+        </div>
+      </div>
+
+      <div class="card" style="max-width:480px;margin-bottom:20px">
+        <div class="card-title">Change password</div>
+        <div class="form-group">
+          <label class="form-label">Current password</label>
+          <input type="password" class="form-input" id="pw-current" placeholder="Current password">
+        </div>
+        <div class="form-group">
+          <label class="form-label">New password</label>
+          <input type="password" class="form-input" id="pw-new" placeholder="New password">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Confirm new password</label>
+          <input type="password" class="form-input" id="pw-confirm" placeholder="Confirm new password">
+        </div>
+        <button class="btn btn-primary" onclick="changePassword()">Update Password</button>
+      </div>
+
+      <div class="card" style="max-width:480px;margin-bottom:20px">
+        <div class="card-title">Export &amp; Import</div>
+        <p style="font-size:13px;color:var(--gray4);margin-bottom:16px;line-height:1.5">
+          Export all pack definitions as a JSON backup. Import to restore
+          packs on a new device or after clearing browser data.
+        </p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="exportData()">
+            Export JSON
+          </button>
+          <button class="btn btn-ghost" onclick="gId('import-file').click()">
+            Import JSON
+          </button>
+          <input type="file" id="import-file" accept=".json"
+            style="display:none" onchange="importData(event)">
+        </div>
+      </div>
+
+      <div class="card danger-zone" style="max-width:480px">
+        <div class="danger-zone-title">Danger zone</div>
+        <p style="font-size:13px;color:var(--gray4);margin-bottom:16px;line-height:1.5">
+          Permanently delete all LinguaBandit data from this device.
+          This cannot be undone.
+        </p>
+        <button class="btn btn-danger" onclick="confirmNuke()">
+          Delete all data
+        </button>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ══════════════════════════════════════════
+   CONFIG
+   ══════════════════════════════════════════ */
+
+var ADMIN_WORKER = "https://lingua-bandit-admin.jrichalot.workers.dev";
+var PW_KEY       = "lb_admin_pw";
+
+/* ══════════════════════════════════════════
+   HELPERS
+   ══════════════════════════════════════════ */
+
+function gId(id){ return document.getElementById(id); }
+
+function showToast(msg, type){
+  var t = gId('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + (type||'info') + ' show';
+  setTimeout(function(){ t.classList.remove('show'); }, 3000);
+}
+
+/* Fetch with a hard timeout — prevents indefinite hangs on stalled
+   network requests. Default 30 seconds. On timeout, throws AbortError. */
+function fetchWithTimeout(url, options, timeoutMs){
+  timeoutMs = timeoutMs || 30000;
+  var controller = new AbortController();
+  var timer = setTimeout(function(){ controller.abort(); }, timeoutMs);
+  options.signal = controller.signal;
+  return fetch(url, options).finally(function(){ clearTimeout(timer); });
+}
+
+/* Simple hash — good enough for a local admin password */
+async function hashStr(str){
+  var enc  = new TextEncoder().encode(str);
+  var buf  = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf))
+    .map(function(b){ return b.toString(16).padStart(2,'0'); })
+    .join('');
+}
+
+function formatDate(ts){
+  if(!ts) return '—';
+  return new Date(ts).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+}
+
+/* ══════════════════════════════════════════
+   PASSWORD / AUTH
+   ══════════════════════════════════════════ */
+
+function checkAuth(){
+  var stored = localStorage.getItem(PW_KEY);
+  var screen = gId('pw-screen');
+  var input  = gId('pw-input');
+
+  if(!stored){
+    /* First visit — set password */
+    gId('pw-title').textContent = 'Set admin password';
+    gId('pw-desc').textContent  = 'This is your first time opening the admin panel. Choose a password to protect it. You will need this to access the admin panel in future.';
+    screen.classList.remove('hidden');
+    input.placeholder = 'Choose a password';
+    input.setAttribute('data-mode','set');
+  } else {
+    /* Return visit — verify */
+    gId('pw-title').textContent = 'Admin login';
+    gId('pw-desc').textContent  = 'Enter your admin password to continue.';
+    screen.classList.remove('hidden');
+    input.placeholder = 'Enter your password';
+    input.setAttribute('data-mode','verify');
+  }
+
+  input.addEventListener('keydown', function(e){
+    if(e.key === 'Enter') submitPassword();
+  });
+}
+
+async function submitPassword(){
+  var input  = gId('pw-input');
+  var mode   = input.getAttribute('data-mode');
+  var val    = input.value.trim();
+  var errEl  = gId('pw-error');
+
+  if(!val){
+    errEl.textContent = 'Please enter a password.';
+    errEl.classList.add('visible');
+    return;
+  }
+
+  var hashed = await hashStr(val);
+
+  if(mode === 'set'){
+    if(val.length < 4){
+      errEl.textContent = 'Password must be at least 4 characters.';
+      errEl.classList.add('visible');
+      return;
+    }
+    localStorage.setItem(PW_KEY, hashed);
+    gId('pw-screen').classList.add('hidden');
+    renderPackList();
+  } else {
+    var stored = localStorage.getItem(PW_KEY);
+    if(hashed === stored){
+      gId('pw-screen').classList.add('hidden');
+      renderPackList();
+    } else {
+      errEl.textContent = 'Incorrect password. Try again.';
+      errEl.classList.add('visible');
+      input.value = '';
+      input.focus();
+    }
+  }
+}
+
+/* ══════════════════════════════════════════
+   NAVIGATION
+   ══════════════════════════════════════════ */
+
+var sections = ['packs','create','topup','settings'];
+var titles   = {
+  packs:    'Packs',
+  create:   'New Pack',
+  topup:    'Top Up Francs',
+  settings: 'Settings'
+};
+
+function showSection(name){
+  sections.forEach(function(s){
+    gId('section-'+s).style.display = s===name ? '' : 'none';
+    gId('nav-'+s).classList[s===name?'add':'remove']('active');
+  });
+  gId('topbar-title').textContent = titles[name] || name;
+  if(name === 'packs') renderPackList();
+}
+
+/* ══════════════════════════════════════════
+   PACK LIST
+   ══════════════════════════════════════════ */
+
+function renderPackList(){
+  var list  = gId('pack-list');
+  var packs = Store.listPacks();
+
+  if(!packs.length){
+    list.innerHTML = '<div class="empty-state">'
+      + '<div class="empty-icon">&#127918;</div>'
+      + '<div class="empty-title">No packs yet</div>'
+      + '<div class="empty-desc">Create your first pack to get started.</div>'
+      + '</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  packs.forEach(function(p){
+    var pack     = Store.getPack(p.code);
+    var wordCount = pack ? Store.getAllPackWords(p.code).length : 0;
+    var nReels   = pack ? pack.config.nReels : '?';
+
+    var item = document.createElement('div');
+    item.className = 'pack-item';
+    item.innerHTML =
+      '<div class="pack-badge"><div class="pack-badge-text">'
+        + p.language.toUpperCase() + '</div></div>'
+      + '<div class="pack-info">'
+        + '<div class="pack-name">' + escHtml(p.label) + '</div>'
+        + '<div class="pack-meta">'
+          + '<span class="pack-code">' + p.code + '</span>'
+          + ' &bull; ' + nReels + ' drums'
+          + ' &bull; ' + wordCount + ' words'
+          + ' &bull; Created ' + formatDate(p.createdAt)
+        + '</div>'
+      + '</div>'
+      + '<div class="pack-actions">'
+        + '<button class="btn btn-ghost btn-sm" onclick="copyPackURL(\'' + p.code + '\')">Copy URL</button>'
+        + '<button class="btn btn-ghost btn-sm" onclick="editPack(\'' + p.code + '\')">Edit</button>'
+        + '<button class="btn btn-ghost btn-sm" onclick="duplicatePack(\'' + p.code + '\')">Duplicate</button>'
+        + '<button class="btn btn-danger btn-sm" onclick="deletePack(\'' + p.code + '\')">Delete</button>'
+      + '</div>';
+    list.appendChild(item);
+  });
+}
+
+function copyPackURL(code){
+  var url = Store.getShareURL(code);
+  navigator.clipboard.writeText(url).then(function(){
+    showToast('URL copied to clipboard', 'success');
+  }).catch(function(){
+    prompt('Copy this URL:', url);
+  });
+}
+
+function deletePack(code){
+  var pack = Store.getPack(code);
+  if(!pack) return;
+  if(!confirm('Delete pack "' + pack.label + '"?\n\nThis will remove the pack and all student data for this pack. This cannot be undone.')) return;
+  Store.deletePack(code);
+  showToast('Pack deleted', 'info');
+  renderPackList();
+}
+
+function duplicatePack(code){
+  var pack = Store.getPack(code);
+  if(!pack) return;
+  var newPack = Store.createPack(
+    pack.label + ' (copy)',
+    pack.language,
+    pack.drums,
+    pack.preloadedBank,
+    pack.config
+  );
+  showToast('Pack duplicated — code: ' + newPack.code, 'success');
+  renderPackList();
+}
+
+function editPack(code){
+  var pack = Store.getPack(code);
+  if(!pack) return;
+  /* Load pack into editor */
+  editingCode = code;
+  showSection('create');
+  gId('create-title').textContent    = 'Edit Pack';
+  gId('create-subtitle').textContent = 'Editing: ' + pack.label;
+
+  gId('p-label').value      = pack.label;
+  gId('p-lang').value       = pack.language;
+  gId('p-reels').value      = pack.config.nReels;
+  gId('p-complexity').value = pack.config.complexity || 'simple';
+
+  /* Populate word list from all drum words */
+  var allWords = Store.getAllPackWords(code);
+  gId('p-wordlist').value = allWords.join(', ');
+
+  /* Load config */
+  gId('cfg-francs').value  = pack.config.startingFrancs;
+  gId('cfg-spins').value   = pack.config.maxSpins;
+  gId('cfg-cost').value    = pack.config.spinCost;
+  gId('cfg-penalty').value = pack.config.wrongPenalty;
+  gId('cfg-mastery').value = pack.config.masteryThreshold;
+  gId('cfg-expiry').value  = pack.config.bankExpiryDays;
+  gId('cfg-joker').value   = Math.round(pack.config.jokerProbability * 100);
+
+  /* Load drums */
+  editDrums = JSON.parse(JSON.stringify(pack.drums));
+  renderDrumEditor();
+
+  /* Load preloaded bank */
+  editPreloaded = JSON.parse(JSON.stringify(pack.preloadedBank || []));
+  renderPreloadChips();
+
+  /* Go to step 1 */
+  goToStep(1);
+  unlockSteps();
+}
+
+/* ══════════════════════════════════════════
+   CREATE / EDIT PACK — STATE
+   ══════════════════════════════════════════ */
+
+var editingCode   = null;   /* null = new pack, string = editing existing */
+var editDrums     = [];
+var editPreloaded = [];
+var maxStep       = 1;
+
+function startNewPack(){
+  editingCode   = null;
+  editDrums     = [];
+  editPreloaded = [];
+  maxStep       = 1;
+  gId('create-title').textContent    = 'New Pack';
+  gId('create-subtitle').textContent = 'Set up a vocabulary pack for your class';
+  gId('p-label').value      = '';
+  gId('p-wordlist').value   = '';
+  gId('save-result').style.display = 'none';
+  gId('btn-save-pack').style.display = 'inline-flex';
+  resetStepTabs();
+  goToStep(1);
+}
+
+function resetStepTabs(){
+  for(var i=1;i<=6;i++){
+    var tab = gId('tab-'+i);
+    tab.className = 'step-tab' + (i===1?' active':' disabled');
+  }
+}
+
+function unlockSteps(){
+  maxStep = 6;
+  for(var i=1;i<=6;i++){
+    gId('tab-'+i).className = 'step-tab';
+  }
+  gId('tab-1').className = 'step-tab active';
+}
+
+function goToStep(n){
+  /* Advancing forward: only block if trying to skip past the
+     next unlocked step. Retreating back is always allowed.    */
+  if(n > maxStep + 1) return;
+  /* Update maxStep when advancing */
+  if(n > maxStep) maxStep = n;
+  for(var i=1;i<=6;i++){
+    gId('step-'+i).style.display = i===n ? '' : 'none';
+    var tab = gId('tab-'+i);
+    if(i === n){
+      tab.className = 'step-tab active';
+    } else if(i < n || i <= maxStep){
+      tab.className = 'step-tab done';
+    } else {
+      tab.className = 'step-tab disabled';
+    }
+  }
+  if(n === 6) buildPreview();
+}
+
+/* ══════════════════════════════════════════
+   STEP LOGIC
+   ══════════════════════════════════════════ */
+
+function step1Next(){
+  var label = gId('p-label').value.trim();
+  if(!label){ showToast('Please enter a pack label', 'error'); return; }
+  maxStep = Math.max(maxStep, 2);
+  gId('tab-2').className = 'step-tab';
+  goToStep(2);
+}
+
+async function step2Next(){
+  var raw = gId('p-wordlist').value.trim();
+  if(!raw){ showToast('Please enter at least some words', 'error'); return; }
+
+  var words = raw.split(',')
+    .map(function(w){ return w.trim().toUpperCase(); })
+    .filter(function(w){ return w.length > 0; });
+
+  if(words.length < 2){ showToast('Please enter at least 2 words', 'error'); return; }
+
+  maxStep = Math.max(maxStep, 3);
+  gId('tab-3').className = 'step-tab';
+  goToStep(3);
+
+  /* Show loading, hide editor */
+  gId('ai-loading').classList.add('visible');
+  gId('drum-editor').style.display = 'none';
+
+  await runAIDrumAssignment(words);
+}
+
+async function runAIDrumAssignment(wordsOverride){
+  var raw = wordsOverride || gId('p-wordlist').value.trim();
+  var words;
+  if(Array.isArray(raw)){
+    words = raw;
+  } else {
+    words = raw.split(',')
+      .map(function(w){ return w.trim().toUpperCase(); })
+      .filter(function(w){ return w.length > 0; });
+  }
+
+  var nReels = parseInt(gId('p-reels').value);
+
+  gId('ai-loading').classList.add('visible');
+  gId('drum-editor').style.display = 'none';
+
+  try {
+    var res = await fetchWithTimeout(ADMIN_WORKER, {
+      method:  'POST',
+      headers: {'Content-Type':'application/json'},
+      body:    JSON.stringify({ type:'drum-assignment', words:words, nReels:nReels })
+    }, 30000);
+    var data = await res.json();
+
+    if(data.error){
+      showToast('AI error: ' + data.error, 'error');
+      gId('ai-loading').classList.remove('visible');
+      return;
+    }
+
+    /* Store suggested drums */
+    editDrums = data.drums;
+
+    renderDrumEditor();
+
+  } catch(e){
+    var msg = (e.name === 'AbortError')
+      ? 'Request timed out after 30 seconds. Check your connection and try again.'
+      : 'Connection error: ' + (e.message || 'unknown error');
+    showToast(msg, 'error');
+  }
+
+  gId('ai-loading').classList.remove('visible');
+}
+
+async function retryAI(){
+  await runAIDrumAssignment(null);
+}
+
+async function suggestMoreWords(){
+  var nReels = parseInt(gId('p-reels').value);
+  var lang   = gId('p-lang').value;
+
+  /* Collect current words per drum */
+  var currentDrums = editDrums.map(function(d){
+    return {
+      position: d.position,
+      words: (d.words||[]).map(function(w){ return typeof w==='string'?w:w.word; })
+    };
+  });
+
+  var allCurrent = [];
+  currentDrums.forEach(function(d){ allCurrent = allCurrent.concat(d.words); });
+  var unique = allCurrent.filter(function(w,i){ return allCurrent.indexOf(w)===i; });
+
+  gId('ai-loading-more').classList.add('visible');
+  gId('suggest-more-result').style.display = 'none';
+  gId('btn-suggest-more').disabled = true;
+
+  try {
+    var res = await fetchWithTimeout(ADMIN_WORKER, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        type:     'suggest-more-words',
+        words:    unique,
+        drums:    currentDrums,
+        nReels:   nReels,
+        language: lang
+      })
+    }, 30000);
+    var data = await res.json();
+
+    if(data.error){
+      showToast('AI error: ' + data.error, 'error');
+    } else if(data.suggestions && data.suggestions.length > 0){
+      renderSuggestions(data.suggestions);
+    } else {
+      showToast('No additional words suggested — your list looks complete!', 'info');
+    }
+  } catch(e){
+    var msg = (e.name === 'AbortError')
+      ? 'Request timed out after 30 seconds. Check your connection and try again.'
+      : 'Connection error: ' + (e.message || 'unknown error');
+    showToast(msg, 'error');
+  }
+
+  gId('ai-loading-more').classList.remove('visible');
+  gId('btn-suggest-more').disabled = false;
+}
+
+function renderSuggestions(suggestions){
+  var el = gId('suggest-more-result');
+  el.innerHTML = '';
+  el.style.display = '';
+
+  var heading = document.createElement('div');
+  heading.style.cssText = 'font-size:12px;font-weight:800;color:var(--gray5);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px';
+  heading.textContent = 'Suggested additions — click to add to a drum:';
+  el.appendChild(heading);
+
+  var chips = document.createElement('div');
+  chips.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px';
+
+  suggestions.forEach(function(s){
+    var word   = s.word;
+    var drums  = s.drums;  /* array of suggested drum positions */
+    var reason = s.reason || '';
+
+    var chip = document.createElement('div');
+    chip.style.cssText = 'display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--white);border:1.5px solid var(--blue);border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.15s';
+    chip.title = reason;
+
+    var wordSpan = document.createElement('span');
+    wordSpan.style.cssText = 'font-family:"Fredoka One",sans-serif;color:var(--blue);letter-spacing:0.5px';
+    wordSpan.textContent = word;
+
+    var drumSpan = document.createElement('span');
+    drumSpan.style.cssText = 'font-size:10px;color:var(--gray4);font-weight:700';
+    drumSpan.textContent = 'D' + drums.join('+D');
+
+    var addBtn = document.createElement('button');
+    addBtn.style.cssText = 'background:var(--blue);color:white;border:none;border-radius:5px;padding:2px 7px;font-size:11px;font-weight:800;cursor:pointer';
+    addBtn.textContent = '+ Add';
+    addBtn.addEventListener('click', function(){
+      drums.forEach(function(pos){
+        var di = pos - 1;
+        if(!editDrums[di]) return;
+        if(!editDrums[di].words) editDrums[di].words = [];
+        var exists = editDrums[di].words.some(function(w){
+          return (typeof w==='string'?w:w.word) === word;
+        });
+        if(!exists) editDrums[di].words.push({ word:word, flagged:false });
+      });
+      chip.style.opacity = '0.4';
+      chip.style.pointerEvents = 'none';
+      addBtn.textContent = 'Added';
+      renderDrumEditor();
+    });
+
+    chip.appendChild(wordSpan);
+    chip.appendChild(drumSpan);
+    chip.appendChild(addBtn);
+    chips.appendChild(chip);
+  });
+
+  el.appendChild(chips);
+  if(suggestions[0] && suggestions[0].reason){
+    var note = document.createElement('div');
+    note.style.cssText = 'font-size:11px;color:var(--gray4);margin-top:8px';
+    note.textContent = 'Hover over a word to see why it was suggested.';
+    el.appendChild(note);
+  }
+}
+
+/* ══════════════════════════════════════════
+   DRUM EDITOR
+   ══════════════════════════════════════════ */
+
+function renderDrumEditor(focusDrum){
+  var grid     = gId('drums-grid');
+  var legend   = gId('flag-legend');
+  var nReels   = parseInt(gId('p-reels').value);
+  grid.innerHTML = '';
+
+  /* Ensure we have the right number of drums */
+  while(editDrums.length < nReels){
+    editDrums.push({ position: editDrums.length+1, words:[] });
+  }
+  editDrums = editDrums.slice(0, nReels);
+
+  /* Check for any flagged words */
+  var hasFlagged = editDrums.some(function(d){
+    return d.words && d.words.some(function(w){ return w.flagged; });
+  });
+  legend.style.display = hasFlagged ? 'flex' : 'none';
+
+  editDrums.forEach(function(drum, di){
+    var col = document.createElement('div');
+    col.className = 'drum-col';
+    col.setAttribute('data-drum', di);
+    col.addEventListener('dragover', onDragOver);
+    col.addEventListener('dragleave', onDragLeave);
+    col.addEventListener('drop', onDrop);
+
+    var header = document.createElement('div');
+    header.className = 'drum-col-header';
+    header.innerHTML = '<span>Drum ' + drum.position + '</span>'
+      + '<span style="color:var(--gray4);font-weight:400">'
+      + (drum.words ? drum.words.length : 0) + ' words</span>';
+    col.appendChild(header);
+
+    var wordsDiv = document.createElement('div');
+    wordsDiv.className = 'drum-col-words';
+    wordsDiv.setAttribute('data-drum', di);
+
+    (drum.words || []).forEach(function(wobj, wi){
+      var word    = typeof wobj === 'string' ? wobj : wobj.word;
+      var flagged = typeof wobj === 'object' && wobj.flagged;
+      wordsDiv.appendChild(makeChip(word, flagged, di, wi));
+    });
+
+    col.appendChild(wordsDiv);
+
+    /* Add word input — focus restored if focusDrum matches */
+    var addInput = document.createElement('input');
+    addInput.type = 'text';
+    addInput.className = 'drum-add-input';
+    addInput.placeholder = 'Type word + Enter';
+    addInput.setAttribute('data-drum', di);
+    addInput.addEventListener('keydown', function(e){
+      if(e.key === 'Enter'){
+        var val = this.value.trim().toUpperCase();
+        if(val){
+          if(!editDrums[di].words) editDrums[di].words = [];
+          editDrums[di].words.push({ word:val, flagged:false });
+          this.value = '';
+          renderDrumEditor(di);   /* pass drum index to restore focus */
+        }
+      }
+    });
+    col.appendChild(addInput);
+
+    /* Restore focus after re-render */
+    if(focusDrum === di){
+      setTimeout(function(){ addInput.focus(); }, 0);
+    }
+
+    grid.appendChild(col);
+  });
+
+  gId('drum-editor').style.display = '';
+}
+
+function makeChip(word, flagged, drumIdx, wordIdx){
+  var chip = document.createElement('div');
+  chip.className = 'word-chip' + (flagged ? ' flagged' : '');
+  chip.draggable = true;
+  chip.setAttribute('data-drum', drumIdx);
+  chip.setAttribute('data-word', wordIdx);
+
+  chip.addEventListener('dragstart', onDragStart);
+
+  var span = document.createElement('span');
+  span.className = 'chip-word';
+  span.textContent = word;
+
+  var btn = document.createElement('button');
+  btn.className = 'chip-remove';
+  btn.innerHTML = '&times;';
+  btn.addEventListener('click', function(e){
+    e.stopPropagation();
+    editDrums[drumIdx].words.splice(wordIdx, 1);
+    renderDrumEditor();
+  });
+
+  chip.appendChild(span);
+  if(flagged){
+    var flag = document.createElement('span');
+    flag.className = 'chip-flag';
+    flag.textContent = '⚠';
+    chip.appendChild(flag);
+  }
+  chip.appendChild(btn);
+  return chip;
+}
+
+/* Drag and drop
+   Normal drag = MOVE (remove from source)
+   Alt/Option+drag = COPY (keep in source)
+   Uses global altDown tracker for macOS compatibility */
+var dragState = null;
+var altDown   = false;
+
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Alt') altDown = true;
+});
+document.addEventListener('keyup', function(e){
+  if(e.key === 'Alt') altDown = false;
+});
+
+function onDragStart(e){
+  var di = parseInt(this.getAttribute('data-drum'));
+  var wi = parseInt(this.getAttribute('data-word'));
+  dragState = { drum:di, word:wi };
+  this.classList.add('dragging');
+  e.dataTransfer.effectAllowed = altDown ? 'copy' : 'move';
+}
+
+function onDragOver(e){
+  e.preventDefault();
+  e.dataTransfer.dropEffect = altDown ? 'copy' : 'move';
+  this.classList.add('drag-over');
+}
+
+function onDragLeave(e){
+  this.classList.remove('drag-over');
+}
+
+function onDrop(e){
+  e.preventDefault();
+  this.classList.remove('drag-over');
+  if(!dragState) return;
+
+  /* altDown is reliable on both Windows and macOS */
+  var isCopy = altDown || e.altKey;
+
+  var targetDrum = parseInt(this.getAttribute('data-drum'));
+  if(targetDrum === dragState.drum){ dragState=null; return; }
+
+  var wobj = editDrums[dragState.drum].words[dragState.word];
+  var word = typeof wobj === 'string' ? wobj : wobj.word;
+
+  /* Add to target drum if not already there */
+  var targetWords = editDrums[targetDrum].words || [];
+  var exists = targetWords.some(function(w){
+    return (typeof w === 'string' ? w : w.word) === word;
+  });
+  if(!exists){
+    targetWords.push({ word:word, flagged:false });
+    editDrums[targetDrum].words = targetWords;
+  }
+
+  /* Move: remove from source. Copy: keep in source. */
+  if(!isCopy){
+    editDrums[dragState.drum].words.splice(dragState.word, 1);
+  }
+
+  dragState = null;
+  renderDrumEditor();
+}
+
+/* ══════════════════════════════════════════
+   PRELOADED BANK
+   ══════════════════════════════════════════ */
+
+function addPreloadWord(){
+  var val  = gId('preload-input').value.trim().toUpperCase();
+  var perm = gId('preload-perm').checked;
+  if(!val) return;
+  /* Avoid duplicates */
+  var exists = editPreloaded.some(function(e){ return e.word === val; });
+  if(!exists) editPreloaded.push({ word:val, permanent:perm });
+  gId('preload-input').value = '';
+  renderPreloadChips();
+}
+
+function renderPreloadChips(){
+  var c = gId('preload-chips');
+  c.innerHTML = '';
+  if(!editPreloaded.length){
+    c.innerHTML = '<span style="font-size:12px;color:var(--gray4);align-self:center">No preloaded words yet</span>';
+    return;
+  }
+  editPreloaded.forEach(function(entry, i){
+    var chip = document.createElement('div');
+    chip.className = 'preload-chip' + (entry.permanent ? ' perm' : '');
+    var btn = document.createElement('button');
+    btn.innerHTML = '&times;';
+    btn.addEventListener('click', function(){
+      editPreloaded.splice(i,1);
+      renderPreloadChips();
+    });
+    chip.textContent = entry.word + (entry.permanent ? ' ' : '');
+    chip.appendChild(btn);
+    c.appendChild(chip);
+  });
+}
+
+/* ══════════════════════════════════════════
+   PREVIEW & SAVE
+   ══════════════════════════════════════════ */
+
+function buildPreview(){
+  var label   = gId('p-label').value.trim() || '(no label)';
+  var nReels  = gId('p-reels').value;
+  var lang    = gId('p-lang').value.toUpperCase();
+  var wordCount = 0;
+  editDrums.forEach(function(d){ wordCount += (d.words||[]).length; });
+
+  var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px">'
+    + '<div><span style="color:var(--gray4);font-weight:700">Label</span><br><strong>' + escHtml(label) + '</strong></div>'
+    + '<div><span style="color:var(--gray4);font-weight:700">Language</span><br><strong>' + lang + '</strong></div>'
+    + '<div><span style="color:var(--gray4);font-weight:700">Drums</span><br><strong>' + nReels + '</strong></div>'
+    + '<div><span style="color:var(--gray4);font-weight:700">Total word slots</span><br><strong>' + wordCount + '</strong></div>'
+    + '<div><span style="color:var(--gray4);font-weight:700">Starting &#8371;</span><br><strong>' + gId('cfg-francs').value + '</strong></div>'
+    + '<div><span style="color:var(--gray4);font-weight:700">Mastery threshold</span><br><strong>' + gId('cfg-mastery').value + ' correct submissions</strong></div>'
+    + '</div>';
+
+  /* Drum summary */
+  html += '<div style="margin-top:16px">';
+  editDrums.forEach(function(d){
+    var words = (d.words||[]).map(function(w){ return typeof w==='string'?w:w.word; });
+    html += '<div style="margin-bottom:8px;font-size:12px">'
+      + '<strong style="color:var(--gray5)">Drum ' + d.position + ':</strong> '
+      + (words.length ? words.join(', ') : '<em style="color:var(--gray4)">empty</em>')
+      + '</div>';
+  });
+  html += '</div>';
+
+  gId('preview-summary').innerHTML = html;
+}
+
+function savePack(){
+  var label     = gId('p-label').value.trim();
+  var lang      = gId('p-lang').value;
+  var nReels    = parseInt(gId('p-reels').value);
+  var complexity = gId('p-complexity').value;
+
+  if(!label){ showToast('Pack label is required', 'error'); goToStep(1); return; }
+
+  /* Validate drums have words */
+  var empty = editDrums.some(function(d){ return !d.words || d.words.length===0; });
+  if(empty){ showToast('All drums must have at least one word', 'error'); goToStep(3); return; }
+
+  var config = {
+    nReels:           nReels,
+    complexity:       complexity,
+    startingFrancs:   parseInt(gId('cfg-francs').value)  || 20,
+    maxSpins:         parseInt(gId('cfg-spins').value)   || 5,
+    spinCost:         parseInt(gId('cfg-cost').value)    || 1,
+    wrongPenalty:     parseInt(gId('cfg-penalty').value) || 3,
+    masteryThreshold: parseInt(gId('cfg-mastery').value) || 3,
+    bankExpiryDays:   parseInt(gId('cfg-expiry').value)  || 30,
+    jokerProbability: (parseInt(gId('cfg-joker').value)  || 10) / 100,
+    earnByReels:      {"3":3,"4":4,"5":5}
+  };
+
+  /* Normalise drums */
+  var drums = editDrums.map(function(d){
+    return {
+      position: d.position,
+      name:     'Drum ' + d.position,
+      words:    (d.words||[]).map(function(w){ return typeof w==='string'?w:w.word; })
+    };
+  });
+
+  var pack;
+  if(editingCode){
+    Store.updatePackDrums(editingCode, drums);
+    Store.updatePackConfig(editingCode, config);
+    Store.updatePreloadedBank(editingCode, editPreloaded);
+    /* Update label in index */
+    var idx = JSON.parse(localStorage.getItem('lb_packs') || '{}');
+    if(idx[editingCode]) idx[editingCode].label = label;
+    localStorage.setItem('lb_packs', JSON.stringify(idx));
+    /* Update pack label */
+    var p = Store.getPack(editingCode);
+    if(p){ p.label = label; localStorage.setItem('lb_pack_'+editingCode, JSON.stringify(p)); }
+    pack = { code: editingCode };
+  } else {
+    pack = Store.createPack(label, lang, drums, editPreloaded, config);
+  }
+
+  var shareURL = Store.getShareURL(pack.code);
+  gId('share-url-text').textContent = shareURL;
+  gId('save-result').style.display = '';
+  gId('btn-save-pack').style.display = 'none';
+  showToast('Pack saved!', 'success');
+}
+
+function copyShareURL(){
+  var url = gId('share-url-text').textContent;
+  navigator.clipboard.writeText(url).then(function(){
+    showToast('URL copied!', 'success');
+  }).catch(function(){
+    prompt('Copy this URL:', url);
+  });
+}
+
+/* ══════════════════════════════════════════
+   TOP UP
+   ══════════════════════════════════════════ */
+
+function lookupTopUpPack(){
+  var code = gId('tu-code').value.trim().toUpperCase();
+  var nameEl = gId('tu-pack-name');
+  var balRow = gId('tu-balance-row');
+  var btn    = gId('btn-topup');
+
+  if(Store.packExists(code)){
+    var pack  = Store.getPack(code);
+    var state = Store.getState(code);
+    nameEl.textContent = pack.label;
+    nameEl.style.color = 'var(--green)';
+    gId('tu-balance').textContent = state.francs;
+    balRow.style.display = '';
+    btn.disabled = false;
+  } else {
+    nameEl.textContent = code.length >= 8 ? 'Pack not found on this device' : '';
+    nameEl.style.color = 'var(--red)';
+    balRow.style.display = 'none';
+    btn.disabled = true;
+    gId('tu-result').style.display = 'none';
+  }
+}
+
+function setTopUpAmount(n){
+  gId('tu-amount').value = n;
+}
+
+function doTopUp(){
+  var code   = gId('tu-code').value.trim().toUpperCase();
+  var amount = parseInt(gId('tu-amount').value) || 0;
+  if(!Store.packExists(code)){ showToast('Pack not found', 'error'); return; }
+  if(amount <= 0){ showToast('Enter a valid amount', 'error'); return; }
+  var newBal = Store.topUpFrancs(code, amount);
+  gId('tu-balance').textContent = newBal;
+  var result = gId('tu-result');
+  result.textContent = '+' + amount + ' added. New balance: ' + newBal + ' \u20a3';
+  result.style.display = '';
+  showToast('+' + amount + ' \u20a3 added successfully', 'success');
+}
+
+/* ══════════════════════════════════════════
+   SETTINGS
+   ══════════════════════════════════════════ */
+
+async function changePassword(){
+  var current = gId('pw-current').value;
+  var nw      = gId('pw-new').value;
+  var confirm = gId('pw-confirm').value;
+
+  if(!current||!nw||!confirm){
+    showToast('Please fill in all fields', 'error'); return;
+  }
+  if(nw !== confirm){
+    showToast('New passwords do not match', 'error'); return;
+  }
+  if(nw.length < 4){
+    showToast('Password must be at least 4 characters', 'error'); return;
+  }
+
+  var currentHash = await hashStr(current);
+  var stored      = localStorage.getItem(PW_KEY);
+  if(currentHash !== stored){
+    showToast('Current password is incorrect', 'error'); return;
+  }
+
+  var newHash = await hashStr(nw);
+  localStorage.setItem(PW_KEY, newHash);
+  gId('pw-current').value = '';
+  gId('pw-new').value     = '';
+  gId('pw-confirm').value = '';
+  showToast('Password updated', 'success');
+}
+
+function exportData(){
+  var dump  = Store.debugDump();
+  var packs = {};
+  Object.keys(dump).forEach(function(k){
+    if(k.indexOf('lb_pack_') === 0) packs[k] = dump[k];
+  });
+  packs['lb_packs'] = dump['lb_packs'] || {};
+
+  var json = JSON.stringify(packs, null, 2);
+  var blob = new Blob([json], { type:'application/json' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'linguabandit-packs-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Packs exported', 'success');
+}
+
+function importData(event){
+  var file   = event.target.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      var data = JSON.parse(e.target.result);
+      var count = 0;
+      Object.keys(data).forEach(function(k){
+        localStorage.setItem(k, JSON.stringify(data[k]));
+        if(k.indexOf('lb_pack_') === 0) count++;
+      });
+      showToast(count + ' pack(s) imported', 'success');
+      renderPackList();
+    } catch(err){
+      showToast('Invalid JSON file', 'error');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function confirmNuke(){
+  if(!confirm('Delete ALL LinguaBandit data from this device?\n\nThis removes all packs, student states, word banks and mastery scores. This cannot be undone.')) return;
+  var n = Store.nukeAll();
+  localStorage.removeItem(PW_KEY);
+  showToast(n + ' items deleted. Reloading...', 'info');
+  setTimeout(function(){ location.reload(); }, 1500);
+}
+
+/* ══════════════════════════════════════════
+   UTILITIES
+   ══════════════════════════════════════════ */
+
+function escHtml(str){
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function closeTopUp(){
+  gId('topup-panel').classList.remove('open');
+}
+
+/* ══════════════════════════════════════════
+   INIT
+   ══════════════════════════════════════════ */
+
+/* Global safety net — catches any promise rejection that slips
+   through a try/catch, preventing silent browser crashes.      */
+window.addEventListener('unhandledrejection', function(e){
+  console.warn('[LinguaBandit] Unhandled promise rejection:', e.reason);
+  showToast('An unexpected error occurred. Please try again.', 'error');
+  e.preventDefault();
+});
+
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', checkAuth);
+} else {
+  checkAuth();
+}
+</script>
+</body>
+</html>

@@ -620,10 +620,11 @@ var Store = (function () {
    * Builds the shareable URL for a given pack code.
    * This is the URL the teacher shares with students.
    */
-  function getShareURL(code) {
-    var base = window.location.href.split("#")[0];
-    return base + "#" + code;
-  }
+function getShareURL(code) {
+  var base = window.location.href.split("#")[0];
+  base = base.replace(/admin\.html(\?.*)?$/, 'index.html');
+  return base + "#" + code;
+}
 
   /**
    * Sets the URL hash without reloading the page.

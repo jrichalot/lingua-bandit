@@ -155,7 +155,7 @@ html,body{
       <div class="star-row">
         <span class="star">&#9733;</span><span class="star">&#9733;</span><span class="star">&#9733;</span><span class="star">&#9733;</span><span class="star">&#9733;</span>
       </div>
-      <div class="logo-sign"><div class="logo-text">LinguaBandit</div></div>
+      <div class="logo-sign" id="logo-sign"><div class="logo-text">LinguaBandit</div></div>
       <div class="coin-row">
         <div class="coin"></div><div class="coin"></div><div class="coin"></div>
         <div class="coin"></div><div class="coin"></div><div class="coin"></div><div class="coin"></div>
@@ -795,20 +795,42 @@ function showFlashcards() {
 }
 
 function showAdmin() {
-  var shareURL = (CODE && CODE !== "DEMO") ? Store.getShareURL(CODE) : "Aucun pack charge";
-  alert("Panneau Admin\n\nPack actuel : " + (PACK.label || CODE)
-    + "\nCode : " + CODE
-    + "\nURL a partager : " + shareURL
-    + "\n\nA venir :\n- Creer et configurer des packs\n- Charger une liste de mots\n- Gerer les eleves\n- Recharger les Francs");
+  window.open('admin.html', '_blank');
 }
 
 /* ══════════════════════════════════════════
    START
    ══════════════════════════════════════════ */
 
+var tapCount   = 0;
+var tapTimeout = null;
+
+function handleLogoTap() {
+  tapCount++;
+  clearTimeout(tapTimeout);
+  if (tapCount >= 5) {
+    tapCount = 0;
+    window.open('admin.html', '_blank');
+  } else {
+    tapTimeout = setTimeout(function () { tapCount = 0; }, 2000);
+  }
+}
+
+function attachLogoGesture() {
+  var logo = gId('logo-sign');
+  if (logo) {
+    logo.addEventListener('click',      handleLogoTap);
+    logo.addEventListener('touchstart', handleLogoTap, { passive: true });
+  }
+}
+
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', function () {
+    attachLogoGesture();
+    init();
+  });
 } else {
+  attachLogoGesture();
   init();
 }
 </script>
