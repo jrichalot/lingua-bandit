@@ -71,7 +71,7 @@ html,body{
 .reel-tape.spinning{animation:drum-spin 0.1s linear infinite}
 .reel-ghost{font-family:'Fredoka One',sans-serif;font-size:clamp(9px,1.8vw,13px);color:#8899CC;opacity:.45;line-height:1;text-align:center;padding:3px 2px;width:100%}
 .reel-sep{width:72%;height:1px;background:rgba(0,40,100,0.12);margin:1px 0}
-.reel-main{font-family:'Fredoka One',sans-serif;font-size:clamp(12px,2.8vw,22px);color:var(--blue3);text-align:center;padding:1px 3px;line-height:1.1;transition:color 0.2s}
+.reel-main{font-family:'Fredoka One',sans-serif;font-size:clamp(10px,2.8vw,22px);color:var(--blue3);text-align:center;padding:1px 3px;line-height:1.1;transition:color 0.2s;width:100%;overflow:hidden;word-break:break-word;hyphens:auto;}
 .reel-frame.held .reel-main{color:var(--gold2)}
 .reel-frame.joker-f .reel-main{color:var(--red);font-size:clamp(16px,3.8vw,28px)}
 .lock-badge{position:absolute;top:3px;right:3px;font-size:clamp(8px,1.7vw,12px);z-index:20;opacity:0;transition:opacity 0.2s}
@@ -104,6 +104,13 @@ html,body{
 .btn-submit:hover{background:linear-gradient(180deg,#FFF4AA 0%,#FFD040 100%)}
 .btn-submit:active{top:4px;box-shadow:0 1px 0 #8A5500}
 .btn-submit:disabled{opacity:0.5;cursor:not-allowed;top:0}
+.btn-new-round{
+  background:linear-gradient(180deg,#38D48A 0%,#1A8A56 100%);
+  color:#FFFFFF;text-shadow:0 1px 3px rgba(0,0,0,0.3);
+  box-shadow:0 5px 0 #0F5C38,0 7px 14px rgba(0,0,0,0.4),inset 0 1px 0 rgba(255,255,255,0.2);
+}
+.btn-new-round:hover{background:linear-gradient(180deg,#4AE89A 0%,#2EC27E 100%)}
+.btn-new-round:active{top:4px;box-shadow:0 1px 0 #0F5C38}
 .neon-panel{background:linear-gradient(180deg,var(--blue3) 0%,#00060F 100%);border-top:clamp(2px,0.5vw,4px) solid var(--gold);padding:clamp(8px,2vh,14px) clamp(14px,3.5vw,24px) clamp(6px,1.5vh,11px);text-align:center;position:relative;overflow:hidden;flex-shrink:0}
 .neon-panel::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 240px 60px at 50% 50%,rgba(255,199,44,0.07) 0%,transparent 70%);pointer-events:none}
 .tagline{font-family:'Fredoka One',sans-serif;font-size:clamp(13px,3vw,21px);color:var(--gold);letter-spacing:clamp(1px,0.4vw,3px);text-shadow:0 0 10px rgba(255,199,44,0.65),0 0 22px rgba(255,199,44,0.3);animation:gold-pulse 3s ease-in-out infinite;line-height:1.2}
@@ -191,6 +198,7 @@ html,body{
     <div class="btn-row">
       <button class="btn btn-play" id="btn-play" onclick="spin()">JOUER</button>
       <button class="btn btn-submit" id="btn-submit" onclick="submitAlignment()">SOUMETTRE</button>
+      <button class="btn btn-new-round" id="btn-new-round" onclick="startNewRound()" style="display:none">NOUVELLE PARTIE</button>
     </div>
 
     <div class="neon-panel">
@@ -257,7 +265,7 @@ var DEMO_PACK = {
   code:   "DEMO",
   label:  "Demo — Maison A1",
   config: {
-    nReels: 3, maxSpins: 5, spinCost: 1, wrongPenalty: 3,
+    nReels: 3, maxSpins: 10, spinCost: 1, wrongPenalty: 3,
     jokerProbability: 0.1, earnByReels: {"3":3,"4":4,"5":5},
     masteryThreshold: 3, bankExpiryDays: 30, startingFrancs: 20,
     complexity: "simple"
@@ -283,7 +291,7 @@ var ALL_GHOSTS = [
 var PACK    = null;   /* current pack definition          */
 var CODE    = null;   /* current pack code                */
 var N_REELS = 3;      /* from pack config                 */
-var MAX_SPINS = 5;    /* from pack config                 */
+var MAX_SPINS = 10;    /* from pack config                 */
 var SPIN_COST = 1;    /* from pack config                 */
 var PENALTY   = 3;    /* from pack config                 */
 var JOKER_P   = 0.1;  /* from pack config                 */
@@ -370,6 +378,19 @@ function gId(id) { return document.getElementById(id); }
 function rnd(a)  { return a[Math.floor(Math.random() * a.length)]; }
 function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
 
+/* Shrinks font size for long words so they always fit the drum.
+   Thresholds tuned for Fredoka One at cabinet width ~300-460px. */
+function fitWordToReel(el, word) {
+  var len = (word || '').length;
+  var size;
+  if      (len <= 5)  size = 'clamp(12px,2.8vw,22px)';
+  else if (len <= 7)  size = 'clamp(11px,2.4vw,18px)';
+  else if (len <= 9)  size = 'clamp(10px,2.0vw,15px)';
+  else if (len <= 11) size = 'clamp(9px,1.8vw,13px)';
+  else                size = 'clamp(8px,1.5vw,11px)';
+  el.style.fontSize = size;
+}
+
 function saveG() {
   /* Persist G to localStorage. Joker and held arrays are transient
      mid-spin but we still save them so the player can resume
@@ -412,6 +433,7 @@ function buildReels() {
       var s1 = mkEl('div','reel-sep');
       var mw = mkEl('div','reel-main','word'+idx);
       mw.textContent = G.words[idx] || rnd(pools[idx]);
+      fitWordToReel(mw, mw.textContent);
       var s2 = mkEl('div','reel-sep');
       var gb = mkEl('div','reel-ghost','gb'+idx);
       gb.textContent = rnd(ghosts[idx][1]);
@@ -465,6 +487,7 @@ function render() {
     var rf = gId('rf'+i), ru = gId('ru'+i);
     var rl = gId('rl'+i), w  = gId('word'+i);
     w.textContent = G.joker[i] ? '[J]' : G.words[i];
+    fitWordToReel(w, G.joker[i] ? '[J]' : G.words[i]);
     rf.classList[G.held[i] && !G.joker[i] ? 'add' : 'remove']('held');
     ru.classList[G.held[i] && !G.joker[i] ? 'add' : 'remove']('held-u');
     rf.classList[G.joker[i] ? 'add' : 'remove']('joker-f');
@@ -478,6 +501,11 @@ function render() {
   }
 
   gId('btn-play').disabled = G.spinning || G.francs < SPIN_COST || G.spinsLeft <= 0;
+
+  /* If student has no francs and no spins in progress, prompt new round */
+  if (!G.spinning && G.francs < SPIN_COST && G.spinsLeft <= 0 && G.hasSpun) {
+    showNewRoundPrompt();
+  }
   var sb = gId('btn-submit');
   if (G.hasSpun && !G.spinning) sb.classList.add('vis');
   else sb.classList.remove('vis');
@@ -571,6 +599,7 @@ async function spin() {
         G.words[i] = rnd(pools[i]);
       }
       gId('word'+i).textContent = G.joker[i] ? '[J]' : G.words[i];
+      fitWordToReel(gId('word'+i), G.joker[i] ? '[J]' : G.words[i]);
       gId('rf'+i).classList[G.joker[i] ? 'add' : 'remove']('joker-f');
     }
   }
@@ -660,9 +689,19 @@ async function submitAlignment() {
     } else {
       G.francs -= PENALTY;
       G.streak  = 0;
-      setResult((data.reason || "Essayez encore !") + " (-" + PENALTY + ")", "lose");
-      gId('btn-submit').disabled = false;
-      gId('btn-play').disabled   = false;
+      var reason = (data.reason || "Essayez encore !") + " (-" + PENALTY + ")";
+
+      /* If no spins left after a wrong submission, round is over */
+      if (G.spinsLeft === 0) {
+        setResult(reason + " — Plus de tours ! Nouvelle partie ?", "lose");
+        gId('btn-submit').disabled = true;
+        gId('btn-play').disabled   = true;
+        showNewRoundPrompt();
+      } else {
+        setResult(reason, "lose");
+        gId('btn-submit').disabled = false;
+        gId('btn-play').disabled   = false;
+      }
     }
 
   } catch(e) {
@@ -676,8 +715,25 @@ async function submitAlignment() {
 }
 
 /* ══════════════════════════════════════════
-   BANK MILESTONES
+   END OF ROUND PROMPT
+   Shown when student has no spins left and
+   cannot or did not submit successfully.
    ══════════════════════════════════════════ */
+
+function showNewRoundPrompt() {
+  /* Small delay so the lose result message is readable first */
+  setTimeout(function() {
+    var newRoundBtn = gId('btn-new-round');
+    if (newRoundBtn) newRoundBtn.style.display = 'block';
+  }, 1200);
+}
+
+function startNewRound() {
+  var newRoundBtn = gId('btn-new-round');
+  if (newRoundBtn) newRoundBtn.style.display = 'none';
+  resetSession();
+  setResult("Appuyez sur JOUER ou tirez le levier !", "");
+}
 
 function checkBankMilestones() {
   var size = getBankCount();
@@ -719,6 +775,9 @@ function resetSession() {
     G.joker[i] = false;
     G.words[i] = rnd(pools[i]);
   }
+  /* Always hide new round button on reset */
+  var newRoundBtn = gId('btn-new-round');
+  if (newRoundBtn) newRoundBtn.style.display = 'none';
   saveG();
   render();
 }

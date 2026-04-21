@@ -87,7 +87,7 @@ var Store = (function () {
 
   var DEFAULT_CONFIG = {
     nReels:           3,
-    maxSpins:         5,
+    maxSpins:         10,
     spinCost:         1,
     wrongPenalty:     3,
     jokerProbability: 0.1,
