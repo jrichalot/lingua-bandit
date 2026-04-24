@@ -1017,3 +1017,511 @@ git push
 1. Admin panel — pack creation UI with AI drum assignment
 2. Sound design — Howler.js
 3. Flashcard PDF generation — jsPDF
+
+----------------------------------
+## Entry 008 — 2026-04-17
+
+### Admin panel — design decisions
+
+**Status:** Design complete — documented before build
+
+---
+
+### Context
+With `store.js` wired into `index.html` and persistence verified,
+the next major feature is the admin panel. Before writing any code,
+a full design session was conducted to nail down every decision.
+
+---
+
+### Decision log
+
+**Access mechanism**
+Five taps on the LinguaBandit logo in `index.html` opens
+`admin.html` in a new tab. This is invisible to students,
+requires no UI, and works on both desktop and mobile.
+The Admin button in the footer nav also opens `admin.html`.
+
+**Authentication**
+Each teacher sets their own password on first visit.
+The password is hashed with SHA-256 and stored in localStorage
+under `lb_admin_pw`. Subsequent visits require the password.
+No shared passwords, no server accounts.
+
+**Language**
+Admin panel is English only. The game UI is French — teachers
+need a clear, unambiguous interface.
+
+**Admin panel structure — three sections**
+After discussion, the originally planned "Students" section
+was eliminated entirely. Full reasoning below.
+
+1. Packs — list with Create · Duplicate · Edit · Delete · Copy URL
+2. New Pack — six-step creation flow
+3. Settings — change password · export JSON · import JSON · wipe all
+
+**Student franc top-up — simplified**
+Original design had a dedicated student management section with
+named student lists per pack. This was rejected as over-engineered
+for what it actually does (add francs to one device).
+
+Final approach: teacher walks to the student's device, does the
+hidden gesture, enters admin password (stored hashed on that
+device after first admin visit), tops up, leaves. No student
+list, no remote management, no extra complexity. The top-up
+UI is a minimal inline form in the Packs section — enter a
+pack code, see current balance, add amount.
+
+**Word entry flow**
+Teacher pastes a flat comma-separated word list. AI suggests
+drum assignments. Teacher reviews in a visual column layout
+with drag-and-drop editing. Words can appear on multiple drums.
+
+**AI drum assignment**
+One Cloudflare Worker call at pack creation time using
+Claude Sonnet 4.6. Teacher reviews and edits visually.
+No grammatical category guidance in the prompt — the assignment
+is position-agnostic. Full prompt reasoning documented in
+Entry 009.
+
+**Duplicate pack**
+Teacher can clone any pack with one click. The clone gets a
+new code and the label "(copy)" appended. Useful for building
+on an existing word list to create a harder or simpler variant.
+
+**File placement**
+`admin.html` sits at project root alongside `index.html`.
+The `window.open('admin.html', '_blank')` call in `index.html`
+uses a relative path that assumes both files in the same directory.
+
+**Second Cloudflare Worker**
+Admin AI calls route through a dedicated `lingua-bandit-admin`
+worker, separate from `lingua-bandit-validator`. Reasons:
+- Different models (Sonnet for admin quality, Haiku/Sonnet for
+  validation based on complexity setting)
+- Different CORS requirements
+- Different response schemas
+- Easier to monitor cost and usage per function
+- Routes on a `type` field in the POST body for extensibility
+
+---
+
+### Files planned
+- `admin.html` — new file at project root
+- `workers/admin-worker.js` — new Cloudflare Worker
+- `index.html` — add 5-tap gesture + update `showAdmin()`
+- `js/store.js` — fix `getShareURL()` to always point to `index.html`
+
+---
+
+### Commit (planned)
+```bash
+git add admin.html workers/admin-worker.js index.html js/store.js DEVLOG.md
+git commit -m "feat: admin panel design + Cloudflare Worker"
+git push
+```
+
+---
+
+## Entry 009 — 2026-04-17
+
+### Admin Cloudflare Worker + drum assignment prompt
+
+**Status:** Complete — deployed to `lingua-bandit-admin.jrichalot.workers.dev`
+
+---
+
+### Worker architecture
+
+**Name:** `lingua-bandit-admin`
+**URL:** `https://lingua-bandit-admin.jrichalot.workers.dev`
+**Model:** Claude Sonnet 4.6 — quality over speed for one-off setup calls
+**CORS:** Same as validator — GitHub Pages + localhost:5500
+
+Routes on a `type` field in the POST body, making it extensible
+for future admin AI calls without deploying a new worker:
+
+```javascript
+switch (body.type) {
+  case "drum-assignment":    → handleDrumAssignment()
+  case "suggest-more-words": → handleSuggestMoreWords()
+}
+```
+
+---
+
+### Drum assignment endpoint
+
+**Input:** `{ type, words: string[], nReels: number }`
+**Output:** `{ drums: [{ position, words: [{ word, flagged }] }] }`
+
+**Key prompt decisions:**
+
+No grammatical category guidance anywhere in the prompt.
+This was a deliberate and important design choice reached
+after discussion.
+
+The original instinct was to guide the AI: "drum 1 is for
+articles, drum 2 for nouns" etc. This was rejected because:
+
+- In a 5-drum game, `JE LA LUI AI DONNÉE` has a direct object
+  pronoun on drum 2, not a noun.
+- In `LA GRANDE MAISON DEVANT LA FORÊT`, drum 2 is an adjective.
+- There is no stable relationship between drum position and
+  grammatical category. The AI validator judges full alignments
+  without caring about position. Drums are just word pools.
+
+The prompt therefore frames the task as:
+"which words could plausibly co-occur in valid French phrases"
+— position-agnostic, holistic, maximising valid alignments.
+
+Flagging is word-level (not drum-level) so the teacher knows
+exactly which word in which position needs review.
+
+Final prompt:
+```
+You are a French linguistics assistant helping a teacher set up
+a vocabulary game called LinguaBandit.
+
+The teacher has provided this word list: {words}
+The game has {nReels} drum(s).
+
+On each spin, one word from each drum appears in sequence forming
+a phrase. The full alignment is valid if it forms grammatically
+correct and semantically natural French. Drum position has no
+fixed grammatical role — the same word can and should appear on
+multiple drums when it makes sense in more than one position.
+
+Your task: assign each word to one or more drums.
+Goal: maximise the number of valid French alignments the player
+could spin, while avoiding combinations that could never form
+valid French regardless of what appears on other drums.
+
+Flag a word on a specific drum with "flagged": true if you are
+uncertain whether it can usefully occupy that position given
+the other words available.
+
+Respond ONLY as valid JSON with no commentary, no markdown,
+no backticks: { "drums": [...] }
+```
+
+---
+
+### Suggest more words endpoint
+
+**Input:** `{ type, words, drums, nReels, language }`
+**Output:** `{ suggestions: [{ word, drums: [1,2], reason }] }`
+
+Called from the drum editor when the teacher clicks
+"✨ Suggest more words". Claude reviews the current drum
+assignment and suggests up to 8 additional words that would
+increase valid alignments, with the drum positions they should
+occupy and a one-sentence reason visible on hover.
+
+Teacher reviews suggestions as clickable chips and adds
+them individually with one click.
+
+---
+
+### Deployment
+1. Cloudflare → Workers → Create Worker → `lingua-bandit-admin`
+2. Paste `workers/admin-worker.js`
+3. Settings → Variables and Secrets → Add `ANTHROPIC_API_KEY`
+   → Encrypt before saving
+4. Save and deploy
+
+---
+
+### Files changed
+- `workers/admin-worker.js` — created
+
+---
+
+## Entry 010 — 2026-04-17
+
+### admin.html build + 5-tap gesture in index.html
+
+**Status:** Complete — tested locally via Live Server
+
+---
+
+### admin.html
+
+A full single-page admin application. Aesthetic direction:
+clean professional teacher tool — dark navy sidebar, white
+content area, gold accents for brand continuity with the game.
+Deliberately not the casino aesthetic — this is a work tool.
+
+**Typography:** Fredoka One (headings, pack codes) +
+Nunito (body, labels) — same fonts as the game for consistency.
+
+**Sidebar navigation:**
+- Packs
+- New Pack
+- Top Up
+- Settings
+
+**Packs section:**
+Lists all packs stored on the device, sorted by last played.
+Each row shows: language badge, label, pack code, drum count,
+word count, created date. Action buttons: Copy URL · Edit ·
+Duplicate · Delete. Empty state shown when no packs exist.
+"+ New Pack" button in header.
+
+**New Pack — six-step flow:**
+
+Step 1 — Details: label, language, drum count (3/4/5),
+complexity (simple/complex for validator model selection).
+
+Step 2 — Words: paste comma-separated word list. Words are
+normalised to uppercase. Minimum 2 words required.
+
+Step 3 — Drums: AI suggests assignments on arrival.
+Visual column layout — one column per drum. Words shown as
+draggable chips. Flagged words shown in amber with ⚠ icon.
+- Drag to move between drums
+- Hold Alt/Option while dragging to copy (keep in source)
+- Type in input below each column to add words manually
+- Click × on any chip to remove from that drum
+- "✨ Suggest more words" button fires second AI call
+- "↺ Re-run AI" button re-runs drum assignment from scratch
+
+Step 4 — Bank: optional preloaded words seeded into every
+student's bank on first visit. Permanent checkbox (default
+checked) — permanent words never expire.
+
+Step 5 — Config: all game parameters — starting francs,
+max spins, spin cost, wrong penalty, mastery threshold,
+word expiry days, joker probability.
+
+Step 6 — Save: preview summary, Save button generates pack
+code and shows shareable URL with Copy button.
+
+**Top Up section:**
+Enter pack code → pack name and current balance appear →
+quick-add buttons (+5, +10, +20, +50) or manual amount →
+Add Francs button. Balance updates immediately in the display.
+
+**Settings section:**
+- Change password (requires current password)
+- Export JSON (downloads all lb_pack_ keys as dated .json file)
+- Import JSON (restores packs from backup file)
+- Danger zone: Delete all data (wipes all lb_ keys including
+  password, requires confirm dialog)
+
+---
+
+### 5-tap gesture in index.html
+
+Added `id="logo-sign"` to the logo element. Added global
+`tapCount` and `tapTimeout` variables. `handleLogoTap()`
+increments tap count on both `click` and `touchstart` events.
+Five taps within 2 seconds opens `admin.html` in a new tab.
+Tap count resets after 2 seconds of inactivity.
+
+Both `click` and `touchstart` listeners attached so the
+gesture works on desktop (mouse clicks) and mobile (touch).
+
+`showAdmin()` function simplified from a placeholder alert
+to `window.open('admin.html', '_blank')`. The footer nav
+Admin button uses the same function.
+
+---
+
+### Bug fixed — getShareURL pointing to admin page
+
+`Store.getShareURL()` built the share URL from
+`window.location.href`. When called from `admin.html`, this
+produced URLs like:
+`http://127.0.0.1:5500/admin.html#FR-SY-27`
+instead of:
+`http://127.0.0.1:5500/index.html#FR-SY-27`
+
+Fix in `js/store.js`:
+```javascript
+function getShareURL(code) {
+  var base = window.location.href.split("#")[0];
+  base = base.replace(/admin\.html(\?.*)?$/, 'index.html');
+  return base + "#" + code;
+}
+```
+
+This strips `admin.html` from the URL and replaces it with
+`index.html` regardless of which page calls the function.
+
+---
+
+### Files changed
+- `admin.html` — created
+- `index.html` — 5-tap gesture, `showAdmin()` updated,
+  `id="logo-sign"` added to logo element
+- `js/store.js` — `getShareURL()` fixed
+
+---
+
+## Entry 011 — 2026-04-17
+
+### Bug fixes — admin panel and crash hardening
+
+**Status:** Complete
+
+---
+
+### Bug 1 — Next button not advancing past step 3
+
+**Symptom:** Clicking Next on steps 3, 4, and 5 did nothing.
+Steps 1 and 2 worked correctly.
+
+**Root cause:** There were two `goToStep()` function definitions
+in `admin.html`. The second one (in the PREVIEW & SAVE section,
+added to trigger `buildPreview()` when reaching step 6)
+overwrote the first at runtime.
+
+Additionally, the guard `if(n > maxStep && n > 1) return`
+blocked forward navigation because only `step1Next()` and
+`step2Next()` updated `maxStep`. Steps 3–5 called
+`goToStep(n+1)` directly without updating `maxStep` first,
+so the guard always fired.
+
+**Fix:** Removed the duplicate `goToStep`. Merged the
+`buildPreview()` call into the single canonical function.
+Changed the guard logic: `goToStep` now updates `maxStep`
+itself when advancing forward, and only blocks skipping
+more than one step ahead (preventing tab-clicking past
+steps not yet reached):
+
+```javascript
+function goToStep(n){
+  if(n > maxStep + 1) return;
+  if(n > maxStep) maxStep = n;
+  // ... render steps and tabs
+  if(n === 6) buildPreview();
+}
+```
+
+---
+
+### Bug 2 — Add word input only worked once per drum
+
+**Symptom:** After adding a word to a drum's text input and
+pressing Enter, the input cleared and `renderDrumEditor()`
+rebuilt the DOM. The rebuilt input had no focus, so the
+teacher had to click back into it before typing again.
+
+**Root cause:** `renderDrumEditor()` destroys and recreates
+all DOM elements. The new input elements start with no focus.
+
+**Fix:** `renderDrumEditor` now accepts an optional `focusDrum`
+parameter. When a word is added, the drum index is passed:
+`renderDrumEditor(di)`. After render, the input for that drum
+receives focus via `setTimeout(function(){ addInput.focus(); }, 0)`.
+The timeout defers until after the current render cycle completes.
+
+---
+
+### Bug 3 — Alt+drag copy not working on macOS
+
+**Symptom:** Holding Alt/Option while dragging a word chip
+between drums moved the word instead of copying it.
+
+**Root cause:** On macOS, Chrome does not reliably propagate
+`e.altKey` through the drag event sequence. The `altKey`
+state read at `dragstart` was sometimes correct but the state
+read at `drop` was always `false`.
+
+**Fix:** Global `altDown` variable tracked via `keydown` and
+`keyup` listeners on the document. This is reliable on both
+macOS and Windows because it tracks the key state independently
+of the drag event system:
+
+```javascript
+var altDown = false;
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Alt') altDown = true;
+});
+document.addEventListener('keyup', function(e){
+  if(e.key === 'Alt') altDown = false;
+});
+```
+
+`onDrop` uses `altDown || e.altKey` for belt-and-suspenders
+coverage. Instructions updated to show both `Alt` (Windows)
+and `Option` (macOS).
+
+---
+
+### Bug 4 — Admin panel crash on network issues
+
+**Symptom:** After several minutes of use the admin panel
+would occasionally freeze/crash with no console error.
+
+**Root cause:** Two failure modes identified:
+
+1. If the network stalled (not failed) on an AI call,
+   `fetch()` hung indefinitely. The browser does not time
+   out fetch requests automatically. The page appeared frozen
+   because the async function was suspended waiting for a
+   response that never arrived.
+
+2. Any unhandled promise rejection from an async function
+   could cause silent crashes in some browser/extension
+   combinations.
+
+**Fix — fetchWithTimeout helper:**
+```javascript
+function fetchWithTimeout(url, options, timeoutMs){
+  timeoutMs = timeoutMs || 30000;
+  var controller = new AbortController();
+  var timer = setTimeout(function(){ controller.abort(); }, timeoutMs);
+  options.signal = controller.signal;
+  return fetch(url, options).finally(function(){ clearTimeout(timer); });
+}
+```
+
+Both AI fetch calls (`runAIDrumAssignment` and
+`suggestMoreWords`) now use `fetchWithTimeout` with a 30-second
+limit. On timeout, `AbortController` fires and throws an
+`AbortError`, which the catch block handles with a specific
+user-facing message.
+
+**Fix — improved catch blocks:**
+```javascript
+} catch(e){
+  var msg = (e.name === 'AbortError')
+    ? 'Request timed out after 30 seconds. Check your connection.'
+    : 'Connection error: ' + (e.message || 'unknown error');
+  showToast(msg, 'error');
+}
+```
+
+**Fix — global unhandledrejection safety net:**
+```javascript
+window.addEventListener('unhandledrejection', function(e){
+  console.warn('[LinguaBandit] Unhandled promise rejection:', e.reason);
+  showToast('An unexpected error occurred. Please try again.', 'error');
+  e.preventDefault();
+});
+```
+
+Catches anything that slips through try/catch blocks, logs
+it to console for debugging, shows a toast to the teacher,
+and prevents the browser from treating it as fatal.
+
+---
+
+### Files changed
+- `admin.html` — all four fixes applied
+- `js/store.js` — `getShareURL()` fix (Entry 010)
+
+### Commit
+```bash
+git add admin.html index.html js/store.js DEVLOG.md
+git commit -m "feat: admin panel, AI drum assignment, bug fixes"
+git push
+```
+
+### Next steps
+1. Fix bugs in `index.html` surfaced with addition of real packs
+2. Merge `dev` to `main` and deploy to GitHub Pages
+3. Sound design — Howler.js
+4. Flashcard PDF generation — jsPDF
