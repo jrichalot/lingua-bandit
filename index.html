@@ -104,6 +104,31 @@ html,body{
 .btn-submit:hover{background:linear-gradient(180deg,#FFF4AA 0%,#FFD040 100%)}
 .btn-submit:active{top:4px;box-shadow:0 1px 0 #8A5500}
 .btn-submit:disabled{opacity:0.5;cursor:not-allowed;top:0}
+.btn-appeal{background:linear-gradient(180deg,#9B59B6 0%,#6C3483 100%);color:#FFFFFF;text-shadow:0 1px 3px rgba(0,0,0,0.3);box-shadow:0 5px 0 #4A235A,0 7px 14px rgba(0,0,0,0.4),inset 0 1px 0 rgba(255,255,255,0.2);display:none}
+.btn-appeal.vis{display:block}
+.btn-appeal:hover{background:linear-gradient(180deg,#A569BD 0%,#7D3C98 100%)}
+.btn-appeal:active{top:4px;box-shadow:0 1px 0 #4A235A}
+.appeal-modal{display:none;position:fixed;inset:0;background:rgba(0,0,20,0.88);backdrop-filter:blur(8px);z-index:400;align-items:center;justify-content:center;padding:20px}
+.appeal-modal.open{display:flex}
+.appeal-box{background:var(--cream);border-radius:20px;border:4px solid var(--purple);box-shadow:0 0 0 2px var(--purple2),0 24px 60px rgba(0,0,0,0.7);padding:clamp(20px,5vw,32px);width:min(360px,90vw);text-align:center}
+.appeal-icon{font-size:clamp(32px,8vw,48px);margin-bottom:8px}
+.appeal-title{font-family:'Fredoka One',sans-serif;font-size:clamp(18px,4vw,26px);color:var(--blue3);margin-bottom:10px}
+.appeal-words{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:12px 0}
+.appeal-word-chip{font-family:'Fredoka One',sans-serif;font-size:clamp(14px,3vw,18px);background:var(--blue3);color:var(--gold3);padding:6px 14px;border-radius:10px}
+.appeal-reason{font-size:clamp(11px,2vw,13px);color:#555;font-weight:700;line-height:1.5;margin:10px 0 14px;background:#F4F6FA;border-radius:8px;padding:10px 12px;text-align:left}
+.appeal-msg{font-size:clamp(13px,2.4vw,15px);font-weight:800;color:#333;margin-bottom:4px}
+.appeal-teacher-hint{font-size:clamp(10px,1.8vw,12px);color:#bbb;margin-bottom:16px;user-select:none}
+.appeal-teacher-panel{display:none;margin-top:14px;border-top:2px solid #eee;padding-top:14px}
+.appeal-teacher-panel.visible{display:block}
+.appeal-pw-input{width:100%;padding:10px 12px;border:1.5px solid #ccc;border-radius:8px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:700;margin-bottom:8px;outline:none;text-align:center;letter-spacing:2px}
+.appeal-pw-input:focus{border-color:var(--blue)}
+.appeal-pw-error{font-size:12px;color:var(--red);margin-bottom:8px;display:none}
+.appeal-pw-error.vis{display:block}
+.appeal-teacher-btns{display:flex;gap:10px}
+.btn-appeal-accept{flex:1;padding:12px;border:none;border-radius:10px;font-family:'Fredoka One',sans-serif;font-size:clamp(14px,2.8vw,18px);background:linear-gradient(180deg,#38D48A 0%,#1A8A56 100%);color:white;cursor:pointer;box-shadow:0 4px 0 #0F5C38}
+.btn-appeal-accept:active{transform:translateY(3px);box-shadow:0 1px 0 #0F5C38}
+.btn-appeal-reject{flex:1;padding:12px;border:none;border-radius:10px;font-family:'Fredoka One',sans-serif;font-size:clamp(14px,2.8vw,18px);background:linear-gradient(180deg,#FF4460 0%,#CC0018 100%);color:white;cursor:pointer;box-shadow:0 4px 0 #880010}
+.btn-appeal-reject:active{transform:translateY(3px);box-shadow:0 1px 0 #880010}
 .btn-new-round{
   background:linear-gradient(180deg,#38D48A 0%,#1A8A56 100%);
   color:#FFFFFF;text-shadow:0 1px 3px rgba(0,0,0,0.3);
@@ -198,6 +223,7 @@ html,body{
     <div class="btn-row">
       <button class="btn btn-play" id="btn-play" onclick="spin()">JOUER</button>
       <button class="btn btn-submit" id="btn-submit" onclick="submitAlignment()">SOUMETTRE</button>
+      <button class="btn btn-appeal" id="btn-appeal" onclick="openAppeal()">APPEL</button>
       <button class="btn btn-new-round" id="btn-new-round" onclick="startNewRound()" style="display:none">NOUVELLE PARTIE</button>
     </div>
 
@@ -233,6 +259,28 @@ html,body{
       </div>
     </div>
     <div class="lever-lbl">Tirer</div>
+  </div>
+</div>
+
+<!-- APPEAL MODAL -->
+<div class="appeal-modal" id="appeal-modal">
+  <div class="appeal-box">
+    <div class="appeal-icon">&#9878;</div>
+    <div class="appeal-title">Appel</div>
+    <div class="appeal-words" id="appeal-words"></div>
+    <div class="appeal-reason" id="appeal-reason"></div>
+    <div class="appeal-msg">Appelez votre <span id="appeal-teacher-word" style="cursor:pointer">professeur</span> pour contester.</div>
+    <div class="appeal-teacher-hint">En attente du professeur...</div>
+    <div class="appeal-teacher-panel" id="appeal-teacher-panel">
+      <input type="password" class="appeal-pw-input" id="appeal-pw-input"
+        placeholder="Mot de passe admin"
+        onkeydown="if(event.key==='Enter')acceptAppeal()">
+      <div class="appeal-pw-error" id="appeal-pw-error">Mot de passe incorrect.</div>
+      <div class="appeal-teacher-btns">
+        <button class="btn-appeal-accept" onclick="acceptAppeal()">Accepter</button>
+        <button class="btn-appeal-reject" onclick="rejectAppeal()">Rejeter</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -680,6 +728,9 @@ async function submitAlignment() {
       gId('outer').classList.add('win-anim');
       setTimeout(function(){ gId('outer').classList.remove('win-anim'); }, 1400);
 
+      /* Hide appeal button on win */
+      gId('btn-appeal').classList.remove('vis');
+
       var msg = refund > 0
         ? 'Bravo ! +' + earned + ' gagne + ' + refund + ' rembourses = +' + (earned + refund) + ' !'
         : 'Bravo ! Alignement correct ! +' + earned + ' !';
@@ -689,6 +740,16 @@ async function submitAlignment() {
     } else {
       G.francs -= PENALTY;
       G.streak  = 0;
+
+      /* Store last submission for appeal */
+      G.lastSubmission = {
+        words:             words.slice(),
+        reason:            data.reason || "Essayez encore !",
+        spinsLeftAtSubmit: G.spinsLeft,
+        earnWouldHaveBeen: EARN[String(N_REELS)] || 3,
+        penaltyApplied:    PENALTY
+      };
+
       var reason = (data.reason || "Essayez encore !") + " (-" + PENALTY + ")";
 
       /* If no spins left after a wrong submission, round is over */
@@ -702,6 +763,9 @@ async function submitAlignment() {
         gId('btn-submit').disabled = false;
         gId('btn-play').disabled   = false;
       }
+
+      /* Show Appeal button */
+      gId('btn-appeal').classList.add('vis');
     }
 
   } catch(e) {
@@ -733,6 +797,129 @@ function startNewRound() {
   if (newRoundBtn) newRoundBtn.style.display = 'none';
   resetSession();
   setResult("Appuyez sur JOUER ou tirez le levier !", "");
+}
+
+/* ══════════════════════════════════════════
+   APPEAL
+   ══════════════════════════════════════════ */
+
+var appealTapCount   = 0;
+var appealTapTimeout = null;
+
+function openAppeal() {
+  if (!G.lastSubmission) return;
+  var sub = G.lastSubmission;
+
+  /* Populate submitted words */
+  var wordsEl = gId('appeal-words');
+  wordsEl.innerHTML = '';
+  sub.words.forEach(function(w) {
+    var chip = document.createElement('div');
+    chip.className = 'appeal-word-chip';
+    chip.textContent = w;
+    wordsEl.appendChild(chip);
+  });
+
+  /* Show AI reason */
+  gId('appeal-reason').textContent = sub.reason;
+
+  /* Reset teacher panel */
+  appealTapCount = 0;
+  gId('appeal-teacher-panel').classList.remove('visible');
+  gId('appeal-pw-input').value = '';
+  gId('appeal-pw-error').classList.remove('vis');
+
+  /* Attach 5-tap gesture to "professeur" */
+  var teacherWord = gId('appeal-teacher-word');
+  teacherWord.onclick = function() {
+    appealTapCount++;
+    clearTimeout(appealTapTimeout);
+    if (appealTapCount >= 5) {
+      appealTapCount = 0;
+      gId('appeal-teacher-panel').classList.add('visible');
+      setTimeout(function(){ gId('appeal-pw-input').focus(); }, 100);
+    } else {
+      appealTapTimeout = setTimeout(function(){ appealTapCount = 0; }, 2000);
+    }
+  };
+
+  /* Halt the game */
+  gId('btn-play').disabled   = true;
+  gId('btn-submit').disabled = true;
+  gId('btn-appeal').classList.remove('vis');
+  gId('appeal-modal').classList.add('open');
+}
+
+async function acceptAppeal() {
+  var stored  = localStorage.getItem('lb_admin_pw');
+  var pwInput = gId('appeal-pw-input');
+  var errEl   = gId('appeal-pw-error');
+  var val     = pwInput.value.trim();
+
+  if (!val) {
+    errEl.textContent = 'Entrez le mot de passe pour confirmer.';
+    errEl.classList.add('vis');
+    return;
+  }
+
+  var enc    = new TextEncoder().encode(val);
+  var buf    = await crypto.subtle.digest('SHA-256', enc);
+  var hashed = Array.from(new Uint8Array(buf))
+    .map(function(b){ return b.toString(16).padStart(2,'0'); })
+    .join('');
+
+  if (!stored || hashed !== stored) {
+    errEl.textContent = 'Mot de passe incorrect.';
+    errEl.classList.add('vis');
+    pwInput.value = '';
+    return;
+  }
+
+  var sub = G.lastSubmission;
+  if (!sub) { closeAppeal(); return; }
+
+  /* Reverse penalty + add winnings + refund unspent spins */
+  G.francs += sub.penaltyApplied + sub.earnWouldHaveBeen + sub.spinsLeftAtSubmit;
+  G.wins++;
+  G.streak++;
+
+  /* Run mastery for submitted words */
+  sub.words.forEach(function(w) {
+    if (CODE !== "DEMO") {
+      Store.incrementMastery(CODE, w);
+      if (Store.isNewlyMastered(CODE, w)) {
+        Store.bankWord(CODE, w);
+        checkBankMilestones();
+      }
+    }
+  });
+
+  gId('appeal-modal').classList.remove('open');
+  gId('outer').classList.add('win-anim');
+  setTimeout(function(){ gId('outer').classList.remove('win-anim'); }, 1400);
+
+  var total = sub.penaltyApplied + sub.earnWouldHaveBeen + sub.spinsLeftAtSubmit;
+  setResult('Appel accepte ! +' + total + ' remis sur votre compte.', "win");
+  resetSession();
+}
+
+function rejectAppeal() {
+  gId('appeal-modal').classList.remove('open');
+  if (G.spinsLeft > 0) {
+    gId('btn-play').disabled   = false;
+    gId('btn-submit').disabled = false;
+  }
+  if (G.lastSubmission) gId('btn-appeal').classList.add('vis');
+  setResult((G.lastSubmission ? G.lastSubmission.reason : "Essayez encore !") + " — Appel rejete.", "lose");
+}
+
+function closeAppeal() {
+  gId('appeal-modal').classList.remove('open');
+  if (G.spinsLeft > 0) {
+    gId('btn-play').disabled   = false;
+    gId('btn-submit').disabled = false;
+  }
+  if (G.lastSubmission) gId('btn-appeal').classList.add('vis');
 }
 
 function checkBankMilestones() {
@@ -767,15 +954,17 @@ function unlockAndPrint() {
    ══════════════════════════════════════════ */
 
 function resetSession() {
-  G.spinsLeft = MAX_SPINS;
-  G.spinsUsed = 0;
-  G.hasSpun   = false;
+  G.spinsLeft      = MAX_SPINS;
+  G.spinsUsed      = 0;
+  G.hasSpun        = false;
+  G.lastSubmission = null;
   for (var i = 0; i < N_REELS; i++) {
     G.held[i]  = false;
     G.joker[i] = false;
     G.words[i] = rnd(pools[i]);
   }
-  /* Always hide new round button on reset */
+  /* Hide appeal and new round buttons */
+  gId('btn-appeal').classList.remove('vis');
   var newRoundBtn = gId('btn-new-round');
   if (newRoundBtn) newRoundBtn.style.display = 'none';
   saveG();

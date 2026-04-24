@@ -886,7 +886,8 @@ body{
           <div class="form-group">
             <label class="form-label">Number of drums</label>
             <select class="form-select" id="p-reels">
-              <option value="3">3 drums</option>
+              <option value="2">2 drums</option>
+              <option value="3" selected>3 drums</option>
               <option value="4">4 drums</option>
               <option value="5">5 drums</option>
             </select>
@@ -924,7 +925,7 @@ body{
         <div style="display:flex;justify-content:space-between;margin-top:8px">
           <button class="btn btn-ghost" onclick="goToStep(1)">&larr; Back</button>
           <button class="btn btn-primary" onclick="step2Next()">
-            Get AI Drum Suggestion &rarr;
+            Assign Positions &rarr;
           </button>
         </div>
       </div>
@@ -932,6 +933,25 @@ body{
       <!-- Step 3: Drums -->
       <div class="card" id="step-3" style="display:none">
         <div class="card-title">Drum assignment</div>
+
+        <!-- Choice panel — shown first, hidden once a method is chosen -->
+        <div id="drum-choice" style="display:none">
+          <p style="font-size:13px;color:var(--gray4);margin-bottom:16px;line-height:1.5">
+            How would you like to assign words to drums?
+          </p>
+          <div style="display:flex;gap:12px;flex-wrap:wrap">
+            <button class="btn btn-primary" style="flex:1;min-width:160px;padding:16px;display:flex;flex-direction:column;align-items:center;gap:6px;height:auto" onclick="chooseAI()">
+              <span style="font-size:20px">&#10024;</span>
+              <span style="font-size:14px">AI suggestion</span>
+              <span style="font-size:11px;font-weight:400;opacity:0.8">Claude assigns words to drums — you review and adjust</span>
+            </button>
+            <button class="btn btn-ghost" style="flex:1;min-width:160px;padding:16px;display:flex;flex-direction:column;align-items:center;gap:6px;height:auto" onclick="chooseManual()">
+              <span style="font-size:20px">&#9998;</span>
+              <span style="font-size:14px">Manual assignment</span>
+              <span style="font-size:11px;font-weight:400;opacity:0.8">All words placed in drum 1 — drag them yourself</span>
+            </button>
+          </div>
+        </div>
 
         <div class="ai-loading" id="ai-loading">
           <div class="ai-spinner"></div>
@@ -958,9 +978,12 @@ body{
             <button class="btn btn-ghost btn-sm" onclick="suggestMoreWords()" id="btn-suggest-more">
               &#10024; Suggest more words
             </button>
-            <span style="font-size:11px;color:var(--gray4)">
-              Ask Claude to suggest additional words that increase valid alignments
-            </span>
+            <button class="btn btn-ghost btn-sm" onclick="retryAI()" id="btn-retry-ai">
+              &#8635; Re-run AI
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="resetToChoice()">
+              &#8592; Change method
+            </button>
           </div>
           <div class="ai-loading" id="ai-loading-more" style="margin-top:10px">
             <div class="ai-spinner"></div>
@@ -971,12 +994,7 @@ body{
 
         <div style="display:flex;justify-content:space-between;margin-top:16px">
           <button class="btn btn-ghost" onclick="goToStep(2)">&larr; Back</button>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-ghost" onclick="retryAI()">
-              &#8635; Re-run AI
-            </button>
-            <button class="btn btn-primary" onclick="goToStep(4)">Next &rarr;</button>
-          </div>
+          <button class="btn btn-primary" onclick="goToStep(4)" id="btn-step3-next" style="display:none">Next &rarr;</button>
         </div>
       </div>
 
@@ -988,8 +1006,27 @@ body{
           this pack. Permanent words never expire. Articles (LA, LE, LES) are
           good candidates — they ensure students always have joker options.
         </p>
+
+        <!-- Bulk paste -->
         <div class="form-group">
-          <label class="form-label">Add a word to preload</label>
+          <label class="form-label">Bulk add from list</label>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <textarea class="form-textarea" id="preload-bulk"
+              placeholder="la, le, les, une, je, tu, il..."
+              style="min-height:60px;text-transform:uppercase;font-family:monospace;flex:1"></textarea>
+            <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+              <label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:700;color:var(--gray5);cursor:pointer;white-space:nowrap">
+                <input type="checkbox" id="preload-bulk-perm" checked> Permanent
+              </label>
+              <button class="btn btn-primary btn-sm" onclick="addPreloadBulk()">Add all</button>
+            </div>
+          </div>
+          <div class="form-hint">Paste a comma-separated list — all words added with the same permanent setting.</div>
+        </div>
+
+        <!-- Single word add -->
+        <div class="form-group">
+          <label class="form-label">Add a single word</label>
           <div style="display:flex;gap:8px">
             <input type="text" class="form-input" id="preload-input"
               placeholder="e.g. LA" style="text-transform:uppercase;font-family:monospace"
@@ -1003,6 +1040,7 @@ body{
             Permanent words cannot expire and cannot be lost through wrong use.
           </div>
         </div>
+
         <div class="preload-chips" id="preload-chips">
           <span style="font-size:12px;color:var(--gray4);align-self:center">
             No preloaded words yet
@@ -1540,11 +1578,44 @@ async function step2Next(){
   gId('tab-3').className = 'step-tab';
   goToStep(3);
 
-  /* Show loading, hide editor */
-  gId('ai-loading').classList.add('visible');
+  /* Show the choice panel — teacher decides AI or manual */
+  gId('drum-choice').style.display = '';
+  gId('ai-loading').classList.remove('visible');
   gId('drum-editor').style.display = 'none';
+  gId('btn-step3-next').style.display = 'none';
+}
 
-  await runAIDrumAssignment(words);
+function chooseAI(){
+  gId('drum-choice').style.display = 'none';
+  runAIDrumAssignment(null);
+}
+
+function chooseManual(){
+  gId('drum-choice').style.display = 'none';
+  var nReels = parseInt(gId('p-reels').value);
+  var raw    = gId('p-wordlist').value.trim();
+  var words  = raw.split(',')
+    .map(function(w){ return w.trim().toUpperCase(); })
+    .filter(function(w){ return w.length > 0; });
+
+  /* Place all words on drum 1, create empty drums 2..n */
+  editDrums = [];
+  for(var i = 0; i < nReels; i++){
+    editDrums.push({
+      position: i + 1,
+      words: i === 0 ? words.map(function(w){ return { word:w, flagged:false }; }) : []
+    });
+  }
+  renderDrumEditor();
+  gId('btn-step3-next').style.display = '';
+}
+
+function resetToChoice(){
+  gId('drum-editor').style.display = 'none';
+  gId('ai-loading').classList.remove('visible');
+  gId('drum-choice').style.display = '';
+  gId('btn-step3-next').style.display = 'none';
+  gId('suggest-more-result').style.display = 'none';
 }
 
 async function runAIDrumAssignment(wordsOverride){
@@ -1593,6 +1664,7 @@ async function runAIDrumAssignment(wordsOverride){
 }
 
 async function retryAI(){
+  gId('drum-choice').style.display = 'none';
   await runAIDrumAssignment(null);
 }
 
@@ -1789,6 +1861,7 @@ function renderDrumEditor(focusDrum){
   });
 
   gId('drum-editor').style.display = '';
+  gId('btn-step3-next').style.display = '';
 }
 
 function makeChip(word, flagged, drumIdx, wordIdx){
@@ -1897,11 +1970,28 @@ function addPreloadWord(){
   var val  = gId('preload-input').value.trim().toUpperCase();
   var perm = gId('preload-perm').checked;
   if(!val) return;
-  /* Avoid duplicates */
   var exists = editPreloaded.some(function(e){ return e.word === val; });
   if(!exists) editPreloaded.push({ word:val, permanent:perm });
   gId('preload-input').value = '';
   renderPreloadChips();
+}
+
+function addPreloadBulk(){
+  var raw  = gId('preload-bulk').value.trim();
+  var perm = gId('preload-bulk-perm').checked;
+  if(!raw){ showToast('Paste some words first', 'error'); return; }
+  var words = raw.split(',')
+    .map(function(w){ return w.trim().toUpperCase(); })
+    .filter(function(w){ return w.length > 0; });
+  var added = 0;
+  words.forEach(function(w){
+    var exists = editPreloaded.some(function(e){ return e.word === w; });
+    if(!exists){ editPreloaded.push({ word:w, permanent:perm }); added++; }
+  });
+  gId('preload-bulk').value = '';
+  renderPreloadChips();
+  if(added > 0) showToast(added + ' word(s) added to preloaded bank', 'success');
+  else showToast('All words already in list', 'info');
 }
 
 function renderPreloadChips(){
