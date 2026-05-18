@@ -1046,9 +1046,13 @@ body{
             No preloaded words yet
           </span>
         </div>
+        <div id="preload-warning" style="display:flex;align-items:flex-start;gap:8px;margin-top:12px;padding:10px 12px;background:#FFFBEB;border:1.5px solid var(--amber);border-radius:8px;font-size:12px;font-weight:700;color:#92400E">
+          <span style="font-size:16px;flex-shrink:0">&#9888;</span>
+          <span>No preloaded words added. Students who receive a Joker on their first turn will not be able to use it. Consider preloading at least the articles (LA, LE, LES) so students always have joker options from the start.</span>
+        </div>
         <div style="display:flex;justify-content:space-between;margin-top:16px">
           <button class="btn btn-ghost" onclick="goToStep(3)">&larr; Back</button>
-          <button class="btn btn-primary" onclick="goToStep(5)">Next &rarr;</button>
+          <button class="btn btn-primary" onclick="step4Next()">Next &rarr;</button>
         </div>
       </div>
 
@@ -1966,6 +1970,15 @@ function onDrop(e){
    PRELOADED BANK
    ══════════════════════════════════════════ */
 
+function step4Next(){
+  if(!editPreloaded.length){
+    if(!confirm('No preloaded bank words have been added.\n\nStudents who receive a Joker on their first turn will not be able to use it.\n\nContinue anyway?')){
+      return;
+    }
+  }
+  goToStep(5);
+}
+
 function addPreloadWord(){
   var val  = gId('preload-input').value.trim().toUpperCase();
   var perm = gId('preload-perm').checked;
@@ -1996,11 +2009,14 @@ function addPreloadBulk(){
 
 function renderPreloadChips(){
   var c = gId('preload-chips');
+  var warning = gId('preload-warning');
   c.innerHTML = '';
   if(!editPreloaded.length){
     c.innerHTML = '<span style="font-size:12px;color:var(--gray4);align-self:center">No preloaded words yet</span>';
+    if(warning) warning.style.display = 'flex';
     return;
   }
+  if(warning) warning.style.display = 'none';
   editPreloaded.forEach(function(entry, i){
     var chip = document.createElement('div');
     chip.className = 'preload-chip' + (entry.permanent ? ' perm' : '');
@@ -2061,6 +2077,13 @@ function savePack(){
   /* Validate drums have words */
   var empty = editDrums.some(function(d){ return !d.words || d.words.length===0; });
   if(empty){ showToast('All drums must have at least one word', 'error'); goToStep(3); return; }
+
+  /* Warn about empty preloaded bank */
+  if(!editPreloaded.length){
+    if(!confirm('No preloaded bank words have been added.\n\nStudents who receive a Joker on their first turn will not be able to use it.\n\nSave the pack anyway?')){
+      goToStep(4); return;
+    }
+  }
 
   var config = {
     nReels:           nReels,
