@@ -1525,3 +1525,663 @@ git push
 2. Merge `dev` to `main` and deploy to GitHub Pages
 3. Sound design — Howler.js
 4. Flashcard PDF generation — jsPDF
+
+-------------------------------------
+
+## Entry 012 — 2026-04-24
+
+### Admin panel improvements — 2-drum support, manual assignment, bulk bank preload
+
+**Status:** Complete — committed to `dev`, deployed to GitHub Pages
+
+---
+
+### Changes made
+
+**1. Two-drum games**
+
+Added `2 drums` as an option in the drum count selector in Step 1
+of the New Pack flow. Three drums remains the default. Two-drum
+games enable simple present tense conjugations such as
+`JE MANGE` or `ELLE COURT` — the simplest possible valid French
+alignment. The `index.html` ghost array already handled a missing
+index gracefully via the `ALL_GHOSTS[i] || [["..."],["..."]]`
+fallback, so no changes were needed there.
+
+**2. Manual drum assignment option in Step 3**
+
+Previously, arriving at Step 3 automatically fired the AI drum
+assignment call. This caused two problems: teachers had no way to
+bypass the AI if they wanted full control, and Claude struggled
+with 4-drum assignments (producing less useful suggestions for
+more complex games).
+
+Step 3 now shows a choice panel first:
+
+- **✨ AI suggestion** — fires the Cloudflare Worker call as
+  before. Claude assigns words to drums, flags uncertain
+  assignments in amber, teacher reviews and edits.
+- **✎ Manual assignment** — places all words on drum 1.
+  Teacher drags words to other drums using the existing
+  drag-and-drop editor. No AI call is made.
+
+A "← Change method" button in the drum editor toolbar lets
+the teacher go back to the choice panel at any time.
+"✨ Suggest more words" and "↺ Re-run AI" remain available
+in both paths — the teacher can start manually and enrich
+with AI afterwards, or start with AI and adjust manually.
+
+The Next button is hidden until either path has produced a
+visible drum layout, preventing accidental advancement with
+empty drums.
+
+**3. Bulk paste for preloaded bank in Step 4**
+
+Teachers can now paste a comma-separated list of words to
+bulk-add to the preloaded bank, in addition to the existing
+one-word-at-a-time input.
+
+A single Permanent toggle applies to the entire batch
+(defaults to permanent — preloaded words are typically
+articles and function words that should always be available).
+
+Duplicates are silently skipped. A toast confirms how many
+words were added. The single-word input remains below the
+bulk paste area for adding individual words afterwards.
+
+This was motivated by the observation that preloaded bank
+words are often a subset of the same CSV pasted in Step 2,
+so teachers should be able to paste the same list and get
+the relevant words into the bank without typing them one
+by one.
+
+---
+
+### Bug also fixed in this session
+
+**Step 3 Next button not advancing (persistent bug)**
+
+Root cause confirmed: `goToStep(n)` had a guard
+`if(n > maxStep && n > 1) return` which blocked forward
+navigation because only `step1Next()` and `step2Next()`
+updated `maxStep`. Steps 3–5 called `goToStep(n+1)` directly
+without updating `maxStep` first.
+
+Final fix: `goToStep` now updates `maxStep` itself when
+advancing forward and only blocks skipping more than one
+step ahead:
+
+```javascript
+function goToStep(n){
+  if(n > maxStep + 1) return;
+  if(n > maxStep) maxStep = n;
+  // ...
+}
+```
+
+---
+
+### Files changed
+- `admin.html` — all three improvements + goToStep fix
+
+### Commit
+```bash
+git add admin.html DEVLOG.md
+git commit -m "feat: 2-drum support, manual drum assignment, bulk bank preload"
+git push
+```
+
+---
+
+## Entry 013 — 2026-04-24
+
+### Appeal system + game flow fixes
+
+**Status:** Complete — committed to `dev`, deployed to GitHub Pages
+
+---
+
+### Feature — Appeal system
+
+When the AI rejects a student's alignment, the student may
+believe their answer was correct or want more explanation.
+The Appeal feature gives the teacher a discreet mechanism to
+review and overrule the AI decision without breaking the
+flow of the game.
+
+**Design principles:**
+- The flow must feel natural in a classroom — teacher walks
+  over, taps a word, enters a password, makes a decision
+- The secret gesture is consistent with the admin panel
+  gesture (5 taps on the logo opens admin.html)
+- The admin password is reused — one credential for teachers
+- No network call needed for an appeal — purely local
+
+---
+
+### Student flow
+
+After a wrong submission the AI explanation is shown in the
+result banner and a purple **APPEL** button appears alongside
+SOUMETTRE and NOUVELLE PARTIE.
+
+The student clicks APPEL. This:
+1. Halts the game (JOUER and SOUMETTRE disabled)
+2. Opens the appeal modal showing:
+   - The submitted words as chips (e.g. JE MANGE BIEN)
+   - The AI's reason verbatim
+   - The message: "Appelez votre **professeur** pour contester."
+   - A hint: "En attente du professeur..."
+
+The game stays halted until the teacher interacts.
+
+---
+
+### Teacher flow
+
+The teacher approaches the student's device. The word
+**"professeur"** in the modal message is the secret trigger.
+
+Five taps on "professeur" within 2 seconds reveals:
+- An admin password field
+- **Accepter** (green) and **Rejeter** (red) buttons
+
+The teacher enters the admin password (same SHA-256 hash
+stored as `lb_admin_pw` by `admin.html`) and clicks Accepter
+or Rejeter. Enter key also confirms.
+
+**Accept:**
+- Reverses the wrong-submission penalty (adds back `PENALTY`₣)
+- Adds the francs the student would have earned
+- Refunds the unspent spins as francs
+- Runs `incrementMastery` for the submitted words
+- Banks any words that reach the mastery threshold
+- Triggers win animation
+- Resets the session (new round)
+- Result banner: "Appel accepté ! +N remis sur votre compte."
+
+**Reject:**
+- Closes the modal
+- Re-enables JOUER and SOUMETTRE
+- Re-shows the APPEL button (student can re-appeal if
+  teacher wants a colleague to review)
+- Result banner updated to show "— Appel rejeté."
+
+---
+
+### Implementation details
+
+**`G.lastSubmission`** — stored at the moment of AI rejection:
+```javascript
+G.lastSubmission = {
+  words:             words.slice(),
+  reason:            data.reason || "Essayez encore !",
+  spinsLeftAtSubmit: G.spinsLeft,
+  earnWouldHaveBeen: EARN[String(N_REELS)] || 3,
+  penaltyApplied:    PENALTY
+};
+```
+
+This gives the teacher full context (the exact words and the
+AI reason) and gives `acceptAppeal` all the numbers it needs
+to correctly credit the student. `G.lastSubmission` is reset
+to `null` in `resetSession`.
+
+**Password hashing** — same `crypto.subtle.digest('SHA-256')`
+approach as `admin.html`. The hash is compared against
+`localStorage.getItem('lb_admin_pw')`. If no admin password
+has been set on the device, an appropriate error is shown.
+
+**5-tap gesture** — `appealTapCount` and `appealTapTimeout`
+variables, reset on each modal open. Consistent 2-second
+window and count of 5, same as the logo gesture.
+
+**APPEL button visibility:**
+- Hidden on page load
+- Hidden while game is in progress (no `lastSubmission`)
+- Shown after wrong AI submission
+- Hidden on win (correct submission or accepted appeal)
+- Hidden when appeal modal is open
+- Re-shown after rejected appeal
+- Hidden on `resetSession`
+
+---
+
+### Other game flow fixes in this session
+
+**Word auto-shrink in drums**
+
+Long words like INTELLIGENT overflowed the drum display.
+Two-part fix:
+
+CSS: `.reel-main` updated with `word-break:break-word`,
+`hyphens:auto`, `width:100%`, `overflow:hidden`, and a
+slightly tighter minimum `clamp` size.
+
+JavaScript: `fitWordToReel(el, word)` function scales font
+size based on word length:
+
+```javascript
+function fitWordToReel(el, word) {
+  var len = (word || '').length;
+  if      (len <= 5)  size = 'clamp(12px,2.8vw,22px)';
+  else if (len <= 7)  size = 'clamp(11px,2.4vw,18px)';
+  else if (len <= 9)  size = 'clamp(10px,2.0vw,15px)';
+  else if (len <= 11) size = 'clamp(9px,1.8vw,13px)';
+  else                size = 'clamp(8px,1.5vw,11px)';
+  el.style.fontSize = size;
+}
+```
+
+Called in `buildReels`, `render`, and the spin loop whenever
+a word lands on a drum.
+
+**End-of-round flow**
+
+Previously when a student submitted a wrong alignment with
+0 spins left, the game displayed the lose message but
+provided no way forward — JOUER was disabled and there was
+no reset option.
+
+Fix: a green **NOUVELLE PARTIE** button appears (after a
+1.2 second delay so the message is readable) when a wrong
+submission leaves 0 spins, or when the student runs out of
+francs entirely. Clicking it calls `startNewRound()` which
+resets the session and hides the button. The button is also
+hidden by `resetSession` so a successful submission cleans
+it up automatically.
+
+**Default spins changed from 5 to 10**
+
+The default `maxSpins` in both the `DEMO_PACK` constant in
+`index.html` and `DEFAULT_CONFIG` in `store.js` was changed
+from 5 to 10. Teachers can still override this per pack
+in the admin panel Config step. The change reflects
+pedagogical feedback that 5 spins is not enough for
+meaningful play, especially with longer words.
+
+---
+
+### Decision — wrong submission does not end the round
+
+After discussion, Option B was confirmed: a wrong submission
+applies the franc penalty but the student keeps their
+remaining spins and can resubmit. This is better pedagogy
+for teenagers — the franc penalty is already a meaningful
+consequence, and ending the round entirely would make
+students risk-averse and reduce engagement. The Appeal
+system provides a further correction mechanism when the
+student believes the AI was wrong.
+
+---
+
+### Files changed
+- `index.html` — appeal system, word auto-shrink, end-of-round
+  flow, NOUVELLE PARTIE button, default 10 spins
+- `js/store.js` — default `maxSpins` changed to 10
+
+### Commit
+```bash
+git add index.html js/store.js DEVLOG.md
+git commit -m "feat: appeal system, word auto-shrink, end-of-round flow, 10 spins default"
+git push
+```
+
+### Next steps
+1. Test 4 and 5 drum games
+2. Sound design — Howler.js
+3. Flashcard PDF generation — jsPDF
+4. Consider adding a progress/stats view for students
+
+## Entry 014 — 2026-05-18
+
+### Button layout, empty bank Joker guard, admin warnings
+
+**Status:** Complete — committed to `dev`, deployed to GitHub Pages
+
+---
+
+### Fix 1 — Button row overflow on 4 and 5 drum games
+
+**Symptom:** With four buttons visible simultaneously (JOUER,
+SOUMETTRE, APPEL, NOUVELLE PARTIE), the btn-row overflowed
+the cabinet panel. The problem was worse with longer button
+labels and would recur in any future language translation.
+
+**Root cause:** `.btn-row` was a single flex row with no
+wrapping and no overflow strategy.
+
+**Fix:** Split into two semantic sub-rows:
+
+```html
+<div class="btn-row">
+  <div class="btn-row-main">
+    <button class="btn btn-play" ...>JOUER</button>
+  </div>
+  <div class="btn-row-secondary">
+    <button class="btn btn-submit" ...>SOUMETTRE</button>
+    <button class="btn btn-appeal" ...>APPEL</button>
+    <button class="btn btn-new-round" ...>NOUVELLE PARTIE</button>
+  </div>
+</div>
+```
+
+JOUER always occupies its own full-width row — it is the
+primary action and should never be squeezed. The secondary
+row uses `flex-wrap:wrap` with `flex:1` and
+`min-width:clamp(80px,20vw,120px)` on each button. This
+means buttons share available width equally and wrap to a
+new line automatically when a label would be too narrow
+rather than being crushed. Future language translations
+with longer button labels will wrap gracefully.
+
+---
+
+### Fix 2 — Joker stuck state when word bank is empty
+
+**Symptom:** On the last spin, if a Joker appeared and the
+student had no words in their bank, the Joker modal opened
+with no chips — the student was completely stuck with no
+way to proceed.
+
+**Two-part fix:**
+
+**Solution 1 — Admin warnings (admin.html)**
+
+Three layered warnings in the New Pack flow to discourage
+teachers from creating packs with no preloaded bank words:
+
+- **Live warning banner** in Step 4 — an amber warning box
+  appears below the preload chips area whenever the bank is
+  empty. Disappears the moment the first word is added.
+  Reappears if all words are removed.
+
+- **Step 4 → Step 5 confirmation** — clicking Next with an
+  empty bank shows a confirm dialog explaining the Joker
+  risk. Teacher can override — it is a warning not a block.
+
+- **Save confirmation** — `savePack()` has the same warning
+  as a final safety net. Clicking Cancel navigates back to
+  Step 4. Clicking OK saves the pack.
+
+The three warnings are intentionally layered — a teacher
+would have to actively dismiss all three to create a pack
+with an empty bank. This is friction enough to prevent
+accidents without blocking legitimate use cases.
+
+**Solution 2 — Silent Joker suppression (index.html)**
+
+When a Joker would land on a reel, `getBankCount()` is
+checked first. If the bank is empty, the Joker is silently
+treated as a normal spin — the reel lands on a random word
+from the pool instead. The student never sees a Joker they
+cannot use.
+
+```javascript
+if (Math.random() < JOKER_P) {
+  var bankAvailable = getBankCount() > 0;
+  if (bankAvailable) {
+    G.joker[i] = true;
+    G.words[i] = 'JOKER';
+  } else {
+    G.joker[i] = false;
+    G.words[i] = rnd(pools[i]);
+  }
+}
+```
+
+This is fully invisible to the student — the effective
+Joker probability simply becomes 0 until the bank has
+words, then resumes normally.
+
+---
+
+### Bug — admin.html syntax error from bad str_replace
+
+**Symptom:** Admin portal failed to load with:
+`Uncaught SyntaxError: Illegal return statement (at admin.html:1983:12)`
+
+**Root cause:** The `str_replace` that inserted `step4Next`
+targeted `function addPreloadWord(){` as the boundary
+marker but consumed the opening brace of `addPreloadWord`
+in the replacement, merging the two functions into one
+malformed block. The `return` inside `addPreloadWord` was
+then seen as a top-level return statement.
+
+**Fix:** Manually restored the missing
+`function addPreloadWord(){` opening line between the two
+functions.
+
+**Lesson:** When using str_replace to insert code
+immediately before an existing function, always include
+the full first line of the following function in both the
+`old_str` and `new_str` to avoid boundary consumption.
+
+---
+
+### Files changed
+- `index.html` — btn-row two-row layout, silent Joker
+  suppression when bank is empty
+- `admin.html` — Step 4 warning banner, Next confirmation,
+  Save confirmation, syntax error fix
+
+### Commit
+```bash
+git add index.html admin.html DEVLOG.md
+git commit -m "fix: empty bank joker guard, admin empty bank warnings, button row layout"
+git push
+```
+
+### Next steps
+1. Sound design — Howler.js
+2. Flashcard PDF generation — jsPDF
+3. Progress / stats view for students
+4. Consider adding pack language support beyond French
+
+
+-------------------------------------
+
+## Entry 015 — 2026-05-18
+
+### PDF Flashcard generation — Mes Fiches
+
+**Status:** Complete — committed to `dev`, deployed to GitHub Pages
+
+---
+
+### Feature overview
+
+Replaced the previous print-stylesheet flashcard system
+(which opened a new tab with basic HTML cards) with a
+full client-side PDF generator using jsPDF. Students now
+get properly sized, printable flashcard PDFs with a format
+picker and word selector built into the game.
+
+---
+
+### Access flow
+
+1. Student clicks **Mes Fiches** in the footer nav
+2. A picker modal opens inside the game (no new tab)
+3. Student selects a card format (S / M / L / Custom)
+4. Student toggles individual words on/off
+5. Student clicks **Générer PDF** — PDF downloads directly
+   as `linguabandit-fiches.pdf`
+
+The lock screen "Imprimer mes fiches" button also routes
+through the same picker via `unlockAndPrint()` → 
+`showFlashcards()`.
+
+---
+
+### Format picker
+
+Four options:
+
+| Format | Dimensions | Cards per A4 | Layout |
+|--------|-----------|-------------|--------|
+| S      | 95×69mm   | 8           | 2×4    |
+| M      | 95×142mm  | 4           | 2×2    |
+| L      | 200×142mm | 2           | 1×2    |
+| Custom | Teacher-defined | Auto-calculated | — |
+
+All cards are landscape orientation. Dimensions were
+calculated to fit A4 portrait (210×297mm) with 5mm
+margins and 3mm gaps between cards.
+
+Custom format: teacher/student enters width and height
+in mm. The PDF engine calculates cols and rows automatically:
+```javascript
+var cols = Math.floor((pageW - margin*2 + gap) / (cardW + gap));
+var rows = Math.floor((pageH - margin*2 + gap) / (cardH + gap));
+```
+
+---
+
+### Word selector
+
+All banked words shown as toggleable chips, all selected
+by default. Student can deselect any words they do not
+want to print (e.g. articles that are in every pack by
+default). Select All / Deselect All buttons for convenience.
+
+---
+
+### Card layout
+
+Each card has a two-zone layout:
+
+**Top zone (left + right columns):**
+- Left column (~62% width): MOT (pre-filled, bold),
+  DOMAINE input box, CATÉGORIE GRAMMATICALE input box
+- Right column (~38% width): ILLUSTRATION box (blank
+  rounded rectangle, labelled in light grey italic)
+
+**Bottom zone (full width, below illustration):**
+- MOT EN CONTEXTE input boxes (3 lines M/L, 2 lines S)
+- LIEN AVEC MES CONNAISSANCES input box (1 line)
+
+**Input fields** are light blue-grey rounded rectangles
+(`#F5F7FC` fill, `#B4B9D2` border) — visually distinct
+"write here" boxes. Much clearer than the previous plain
+bottom-border underline approach.
+
+**Word field** — pre-filled with the banked word in bold.
+No extra blank underlines below it (removed per design
+decision — the word stands alone).
+
+**Cut lines** — dashed grey lines between cards on each
+page so students can cut them out neatly.
+
+---
+
+### Language-aware labels
+
+Field labels follow the pack language setting
+(`PACK.language`). Label sets defined for French (default),
+English, and Japanese. Adding a new language requires
+one entry in the `FC_LABELS` object:
+
+```javascript
+var FC_LABELS = {
+  fr: { word:'MOT', domain:'DOMAINE', grammar:'CATÉGORIE GRAMMATICALE',
+        context:'MOT EN CONTEXTE', relation:'LIEN AVEC MES CONNAISSANCES',
+        illus:'ILLUSTRATION' },
+  en: { word:'WORD', domain:'DOMAIN', grammar:'GRAMMATICAL CATEGORY',
+        context:'WORD IN CONTEXT', relation:'RELATION TO PREVIOUS KNOWLEDGE',
+        illus:'ILLUSTRATION' },
+  ja: { ... }
+};
+```
+
+---
+
+### Implementation — jsPDF lazy loading
+
+jsPDF (2.5.1) is loaded from cdnjs. Loading it in `<head>`
+blocked page rendering entirely (blue screen, no console
+error — a silent rendering failure caused by the script
+executing before CSS was parsed). Fixed by lazy-loading
+jsPDF dynamically the first time the student clicks
+Générer PDF:
+
+```javascript
+function generatePDF() {
+  if (!window.jspdf) {
+    var script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    script.onload = function() { buildPDF(); };
+    document.head.appendChild(script);
+  } else {
+    buildPDF();
+  }
+}
+```
+
+On subsequent PDF generations `window.jspdf` is already
+defined and `buildPDF()` is called directly with no
+additional network request.
+
+---
+
+### Bugs fixed during development
+
+**Bug 1 — Missing `</style>` tag**
+A `str_replace` that added the flashcard CSS consumed the
+existing `</style>` closing tag. The CSS block ran unclosed
+into `</head>`, causing the browser to treat all subsequent
+HTML as CSS. Result: 732 VS Code CSS errors and a blank
+blue screen with no JS console error.
+Fix: restored the missing `</style>` tag.
+
+**Bug 2 — jsPDF blocking page render**
+Loading jsPDF synchronously in `<head>` blocked the DOM.
+Fix: lazy loading as described above.
+
+**Bug 3 — Duplicate `buildPDF` function**
+A series of `str_replace` operations left two `buildPDF`
+function definitions in the file. The second definition
+silently overwrote the first at runtime.
+Fix: removed the duplicate stub.
+
+---
+
+### Design decisions
+
+**No blank back page** — cards are single-sided. Students
+can write the word's translation on the blank back
+themselves, giving them flexibility.
+
+**Students fill in all fields except MOT** — pedagogical
+decision from the start of the project. The word is
+pre-filled; everything else (domain, grammatical category,
+context sentence, relation to previous knowledge,
+illustration) is completed by the student. This reinforces
+active recall rather than passive reading.
+
+**Input boxes not underlines** — filled rounded rectangles
+are unambiguous "write here" affordances. Plain underlines
+were visually weak, especially at S card size.
+
+**Adaptive sizing** — `drawCard` detects small cards
+(`w < 100mm`) and applies tighter padding, smaller fonts,
+and fewer context lines so all fields fit correctly across
+all three preset sizes.
+
+---
+
+### Files changed
+- `index.html` — flashcard picker modal, PDF generator,
+  jsPDF lazy loading, card layout engine
+
+### Commit
+```bash
+git add index.html DEVLOG.md
+git commit -m "feat: PDF flashcard generator with format picker and word selector"
+git push
+```
+
+### Next steps
+1. Sound design — Howler.js
+2. Progress / stats view for students
+3. Consider adding pack language support beyond French
